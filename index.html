@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ナショナルエコノミー Online (Full Polish)</title>
+<title>ナショナルエコノミー Online</title>
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -44,6 +44,9 @@
   .lobby-btn.start-btn {
     background: #eab308; color: #000; font-size: 1.05rem; font-weight: 900;
     box-shadow: 0 0 12px rgba(234, 179, 8, 0.4); margin-top: 6px; padding: 12px;
+  }
+  .lobby-btn.start-btn:disabled {
+    background: #78716c; color: #d6d3d1; cursor: not-allowed; box-shadow: none;
   }
   .lobby-btn.danger { background: #b91c1c; }
   .lobby-btn.sec { background: #374151; }
@@ -108,11 +111,10 @@
 
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; }
   
-  /* カード演出用スタイル */
   .card {
     background: var(--card-bg); border: 1px solid #ad9c85; border-radius: 6px; padding: 8px;
     display: flex; flex-direction: column; justify-content: space-between; min-height: 130px; position: relative;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
   .card.workplace { border-top: 4px solid #4a3826; }
   .card.my-facility { border-top: 4px solid var(--p0); background: #f0f6ff; }
@@ -120,22 +122,12 @@
   .card.goods { background: #f0fdf4; border: 1px dashed #22c55e; }
   .card.passive { opacity: 0.9; background: #faf8f5; border-top: 4px solid #6b7280; }
 
-  /* 職場が利用されたときのフラッシュアニメーション */
-  .card.card-flash {
-    animation: flashEffect 0.6s ease-out;
-  }
-  @keyframes flashEffect {
-    0% { transform: scale(1.04); box-shadow: 0 0 16px rgba(212, 175, 55, 0.9); border-color: var(--brass); }
-    100% { transform: scale(1); box-shadow: none; }
-  }
-
   .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
   .card-name { font-size: 0.85rem; font-weight: 900; color: #111; }
   .card-tag { font-size: 0.65rem; background: #ded2bf; padding: 1px 4px; border-radius: 3px; color: #333; }
   .card-sub { font-size: 0.72rem; color: #555; font-weight: bold; }
   .card-desc { font-size: 0.72rem; color: #222; line-height: 1.25; margin: 4px 0; flex: 1; }
 
-  /* 労働者トークンと着地アニメーション */
   .worker-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 4px; min-height: 24px; }
   .w-token {
     width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 0.68rem; font-weight: 900;
@@ -177,7 +169,7 @@
   .nav-item.active::after { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 3px; background: var(--brass); }
   .badge-counter { position: absolute; top: 6px; right: 20%; background: #dc2626; color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 900; }
 
-  /* 演出：カード獲得カットインオーバーレイ */
+  /* カットイン演出 */
   #card-cutin-layer {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;
     display: flex; align-items: center; justify-content: center; z-index: 4000;
@@ -200,7 +192,6 @@
   .cutin-sub { font-size: 0.8rem; color: #555; font-weight: bold; }
   .cutin-desc { font-size: 0.75rem; color: #222; background: #f7f3eb; padding: 6px; border-radius: 4px; }
 
-  /* 演出：手番トーストフラッシュ */
   #turn-splash-toast {
     position: fixed; top: 40%; left: 10%; right: 10%;
     background: rgba(18, 16, 14, 0.96); border: 2px solid var(--brass); border-radius: 12px;
@@ -241,8 +232,7 @@
 <!-- ロビー画面 -->
 <div id="lobby-screen">
   <div class="lobby-card">
-    <div class="lobby-title">🌐 ナショナルエコノミー Online</div>
-    <div style="font-size:0.8rem; color:#aaa;">リアルタイム同期対戦（演出・効果音・上級AI搭載）</div>
+    <div class="lobby-title">🌐 ナショナルエコノミー</div>
 
     <div id="room-controls" style="display:flex; flex-direction:column; gap:10px;">
       <div style="display:flex; gap:8px;">
@@ -265,7 +255,7 @@
         </button>
 
         <button id="btn-start-online-game" class="lobby-btn start-btn" onclick="hostStartGame()">
-          ▶ このメンバーでゲームを開始する
+          ▶ ゲームを開始する
         </button>
 
         <button class="lobby-btn danger" style="padding:8px; font-size:0.85rem; margin-top:4px;" onclick="closeAndDestroyRoom()">
@@ -367,7 +357,7 @@
 
 <script>
 // ==========================================
-// Web Audio API による完全内蔵サウンドシステム
+// Web Audio API による効果音生成
 // ==========================================
 let audioEnabled = true;
 let audioCtx = null;
@@ -405,7 +395,6 @@ function playTone(freq, type, duration, gainVal = 0.15) {
   } catch(e) {}
 }
 
-// 木製コマ着地音（コトッ）
 function playWorkerSound() {
   if (!audioEnabled) return;
   initAudio();
@@ -413,36 +402,31 @@ function playWorkerSound() {
   setTimeout(() => playTone(140, 'sine', 0.12, 0.3), 30);
 }
 
-// カードドロー音（シュッ）
 function playCardSound() {
   if (!audioEnabled) return;
   playTone(600, 'sine', 0.05, 0.1);
   setTimeout(() => playTone(950, 'sine', 0.08, 0.12), 40);
 }
 
-// コイン獲得音（チャリン）
 function playCoinSound() {
   if (!audioEnabled) return;
-  playTone(987.77, 'sine', 0.15, 0.15); // B5
-  setTimeout(() => playTone(1318.51, 'sine', 0.35, 0.2), 80); // E6
+  playTone(987.77, 'sine', 0.15, 0.15);
+  setTimeout(() => playTone(1318.51, 'sine', 0.35, 0.2), 80);
 }
 
-// 建築音（トントンッ）
 function playBuildSound() {
   if (!audioEnabled) return;
   playTone(320, 'square', 0.06, 0.12);
   setTimeout(() => playTone(440, 'square', 0.1, 0.15), 90);
 }
 
-// 手番通知音（ポロロン）
 function playTurnSound() {
   if (!audioEnabled) return;
-  playTone(523.25, 'triangle', 0.15, 0.15); // C5
-  setTimeout(() => playTone(659.25, 'triangle', 0.15, 0.15), 100); // E5
-  setTimeout(() => playTone(783.99, 'triangle', 0.3, 0.2), 200); // G5
+  playTone(523.25, 'triangle', 0.15, 0.15);
+  setTimeout(() => playTone(659.25, 'triangle', 0.15, 0.15), 100);
+  setTimeout(() => playTone(783.99, 'triangle', 0.3, 0.2), 200);
 }
 
-// 演出：引いたカードのカットイン表示
 function showCardCutIn(card, titlePrefix = "GET CARD!") {
   playCardSound();
   const layer = document.getElementById('card-cutin-layer');
@@ -457,7 +441,6 @@ function showCardCutIn(card, titlePrefix = "GET CARD!") {
   setTimeout(() => { layer.innerHTML = ''; }, 1200);
 }
 
-// 演出：手番開始トースト
 function showMyTurnToast() {
   playTurnSound();
   const toast = document.getElementById('turn-splash-toast');
@@ -465,16 +448,8 @@ function showMyTurnToast() {
   setTimeout(() => { toast.classList.remove('show'); }, 1400);
 }
 
-// 演出：職場フラッシュ
-function triggerCardFlash(cardElement) {
-  if (!cardElement) return;
-  cardElement.classList.remove('card-flash');
-  void cardElement.offsetWidth; // リフロー
-  cardElement.classList.add('card-flash');
-}
-
 // ==========================================
-// 固有プレイヤーID管理（端末の識別）
+// プレイヤー識別 & Firebase
 // ==========================================
 let myPlayerId = sessionStorage.getItem('ne_player_id');
 if (!myPlayerId) {
@@ -483,9 +458,6 @@ if (!myPlayerId) {
 }
 let myPlayerName = localStorage.getItem('ne_player_name') || '';
 
-// ==========================================
-// Firebase設定
-// ==========================================
 const firebaseConfig = {
   apiKey: "AIzaSyCensgfS0V_tUY4O9lV_RNXiLiK9tMmSYs",
   authDomain: "national-economy-403a1.firebaseapp.com",
@@ -508,9 +480,6 @@ try {
   });
 }
 
-// ==========================================
-// カードマスター（全55枚・完全スペック）
-// ==========================================
 const CARD_SPECS = [
   { id: 'farm', name: '農場', cost: 1, vp: 6, count: 8, tag: '農園', desc: '消費財を2枚引く。', sellable: true },
   { id: 'burn', name: '焼畑', cost: 1, vp: 0, count: 2, tag: '農園', desc: '消費財を5枚引く。R終了時に捨て札へ。', sellable: false },
@@ -589,8 +558,8 @@ function joinOrCreateRoom() {
         gameStarted: false,
         slots: [
           { type: 'human', name: myPlayerName, taken: true, playerId: myPlayerId },
-          { type: 'cpu', name: 'CPU 1', taken: false, playerId: null },
-          { type: 'cpu', name: 'CPU 2', taken: false, playerId: null }
+          { type: 'cpu', name: 'CPU 1', taken: false, playerId: '' },
+          { type: 'cpu', name: 'CPU 2', taken: false, playerId: '' }
         ]
       };
       roomRef.set(initialRoom);
@@ -608,7 +577,6 @@ function joinOrCreateRoom() {
         const inGameIdx = (G.players || []).findIndex(p => p.playerId === myPlayerId);
         if (inGameIdx !== -1) mySeatIndex = inGameIdx;
 
-        // 手番が回ってきた時のトースト演出
         if (G.phase === 'action' && G.turnPlayer === mySeatIndex && lastTurnPlayer !== mySeatIndex) {
           showMyTurnToast();
         }
@@ -696,7 +664,7 @@ function takeSlot(targetIdx) {
         s.type = 'cpu';
         s.name = `CPU ${i}`;
         s.taken = false;
-        s.playerId = null;
+        s.playerId = '';
       }
     });
 
@@ -716,7 +684,7 @@ function leaveSlot(idx) {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
     if (slots[idx] && slots[idx].playerId === myPlayerId) {
-      slots[idx] = { type: 'cpu', name: `CPU ${idx}`, taken: false, playerId: null };
+      slots[idx] = { type: 'cpu', name: `CPU ${idx}`, taken: false, playerId: '' };
       mySeatIndex = null;
       db.ref(`rooms/${currentRoomId}/slots`).set(slots);
     }
@@ -745,7 +713,7 @@ function toggleSlotType(idx) {
       type: nextType,
       name: (nextType === 'cpu') ? `CPU ${idx}` : `待機中`,
       taken: false,
-      playerId: null
+      playerId: ''
     };
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
@@ -755,7 +723,7 @@ function addSlot() {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
     if (slots.length >= 4) return;
-    slots.push({ type: 'cpu', name: `CPU ${slots.length}`, taken: false, playerId: null });
+    slots.push({ type: 'cpu', name: `CPU ${slots.length}`, taken: false, playerId: '' });
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
@@ -778,17 +746,45 @@ function removeSlot(idx) {
   });
 }
 
+// 開始ボタンの堅牢化 & undefined 撲滅
 function hostStartGame() {
   initAudio();
+  if (!currentRoomId) {
+    alert('部屋番号が取得できていません。');
+    return;
+  }
+  const btn = document.getElementById('btn-start-online-game');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '⏳ 開始中...';
+  }
+
   db.ref(`rooms/${currentRoomId}`).once('value', (snap) => {
     const rData = snap.val();
-    const slots = rData.slots || [];
-    if (slots.length < 2) return;
-
-    const mySlot = slots.find(s => s.playerId === myPlayerId);
-    if (!mySlot) {
-      alert('あなたはまだいずれの席にも着席していません。席を選んでから開始してください。');
+    if (!rData) {
+      alert('部屋が見つかりません。');
+      if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
       return;
+    }
+    const slots = rData.slots || [];
+    if (slots.length < 2) {
+      alert('ゲームを開始するには最低2人の参加枠が必要です。');
+      if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
+      return;
+    }
+
+    // 未着席なら自動的に席を割り当てる
+    let mySlot = slots.find(s => s.playerId === myPlayerId);
+    if (!mySlot) {
+      const emptyIdx = slots.findIndex(s => !s.taken || s.type === 'cpu');
+      const assignIdx = (emptyIdx !== -1) ? emptyIdx : 0;
+      slots[assignIdx] = {
+        type: 'human',
+        name: myPlayerName || 'プレイヤー1',
+        taken: true,
+        playerId: myPlayerId
+      };
+      mySeatIndex = assignIdx;
     }
 
     const deck = [];
@@ -803,9 +799,17 @@ function hostStartGame() {
     const numP = slots.length;
     const startP = Math.floor(Math.random() * numP);
     const players = slots.map((s, idx) => ({
-      id: idx, playerId: s.playerId, name: s.name, isHuman: (s.type === 'human'),
-      money: 0, workers: 2, newWorkers: 0, placedWorkers: 0,
-      buildings: [], hand: [], debts: 0
+      id: idx,
+      playerId: s.playerId || '', // undefined を防ぐ
+      name: s.name || `P${idx+1}`,
+      isHuman: (s.type === 'human'),
+      money: 0,
+      workers: 2,
+      newWorkers: 0,
+      placedWorkers: 0,
+      buildings: [],
+      hand: [],
+      debts: 0
     }));
 
     for (let order = 0; order < numP; order++) {
@@ -823,12 +827,32 @@ function hostStartGame() {
     ];
 
     const state = {
-      round: 1, household: 0, deck: deck, discard: [], publicWorkplaces: publicWorkplaces, soldWorkplaces: [],
-      players: players, startPlayer: startP, turnPlayer: startP, speed: 600, phase: 'action',
-      logHistory: [`[R1] 🎮 ゲーム開始！ (${numP}人対戦 / スタートP: ${players[startP].name})`], isCleaningUp: false
+      round: 1,
+      household: 0,
+      deck: deck,
+      discard: [],
+      publicWorkplaces: publicWorkplaces,
+      soldWorkplaces: [],
+      players: players,
+      startPlayer: startP,
+      turnPlayer: startP,
+      speed: 600,
+      phase: 'action',
+      logHistory: [`[R1] 🎮 ゲーム開始！ (${numP}人対戦 / スタートP: ${players[startP].name})`],
+      isCleaningUp: false
     };
 
-    db.ref(`rooms/${currentRoomId}`).update({ gameStarted: true, state: state });
+    db.ref(`rooms/${currentRoomId}`).update({
+      gameStarted: true,
+      slots: slots,
+      state: state
+    }).catch((err) => {
+      alert('ゲーム開始エラー: ' + err.message);
+      if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
+    });
+  }, (err) => {
+    alert('通信エラー: ' + err.message);
+    if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
   });
 }
 
@@ -954,7 +978,7 @@ function executeActionOnline(p, wp, doneCb) {
     doneCb();
   } else if (wp.id === 'school') {
     p.newWorkers++;
-    playTone(587.33, 'triangle', 0.25, 0.2); // D5
+    playTone(587.33, 'triangle', 0.25, 0.2);
     G.logHistory.unshift(`[R${rnd}] 🎓 ${p.name} が【学校】で労働者を1名追加雇用。`);
     doneCb();
   } else if (wp.id === 'farm') {
@@ -1105,7 +1129,7 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// 思考型上級AIロジック（完全復元 ＆ サウンド連動）
+// 思考型AI
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   const rnd = G.round;
@@ -1442,7 +1466,6 @@ function renderAll() {
   document.getElementById('hud-wage').innerText = `賃金: $${WAGE_MAP[Math.min(9, G.round)]} / 1人`;
   document.getElementById('hud-household').innerText = `$${G.household}`;
 
-  // 全体配置モニター
   const mBox = document.getElementById('all-workers-monitor');
   mBox.innerHTML = '';
   (G.players || []).forEach(p => {
@@ -1498,7 +1521,6 @@ function renderAll() {
       `${turnPlayerObj.name} の手番中...`;
   }
 
-  // 公共職場
   const pubGrid = document.getElementById('public-grid');
   pubGrid.innerHTML = '';
   (G.publicWorkplaces || []).forEach((w, idx) => {
@@ -1516,7 +1538,6 @@ function renderAll() {
     pubGrid.appendChild(card);
   });
 
-  // あなたの所有建物
   const myBldGrid = document.getElementById('my-buildings-grid');
   myBldGrid.innerHTML = '';
   if (me && me.buildings) {
@@ -1525,7 +1546,7 @@ function renderAll() {
       const isPassive = (b.sellable === false && b.id !== 'burn');
       const card = document.createElement('div');
       card.className = `card my-facility ${isPassive ? 'passive' : ''}`;
-      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me.placedWorkers < me.workers && canUseWorkplace(me, b));
+      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me && me.placedWorkers < me.workers && canUseWorkplace(me, b));
       card.innerHTML = `
         <div class="card-top"><span class="card-name">${b.name}</span><span class="card-tag">${b.tag}</span></div>
         <div class="card-sub">Cost: ${b.cost} / VP: ${b.vp}</div>
@@ -1539,7 +1560,6 @@ function renderAll() {
     });
   }
 
-  // 売却された公共職場
   const soldGrid = document.getElementById('sold-public-grid');
   const soldSec = document.getElementById('sold-public-section');
   soldGrid.innerHTML = '';
@@ -1564,7 +1584,6 @@ function renderAll() {
     soldSec.style.display = 'none';
   }
 
-  // 他プレイヤー状況タブ
   const pList = document.getElementById('players-list');
   pList.innerHTML = '';
   (G.players || []).forEach(p => {
@@ -1589,7 +1608,6 @@ function renderAll() {
     pList.appendChild(box);
   });
 
-  // あなたの手札
   const hGrid = document.getElementById('hand-grid');
   hGrid.innerHTML = '';
   if (me && me.hand) {
@@ -1608,7 +1626,6 @@ function renderAll() {
     });
   }
 
-  // ログストリーム
   const logBox = document.getElementById('log-stream');
   logBox.innerHTML = (G.logHistory || []).map(l => `<div class="log-line">${l}</div>`).join('');
 }

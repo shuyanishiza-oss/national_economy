@@ -515,7 +515,7 @@ let mySeatIndex = 0;
 let myPlayerName = localStorage.getItem('ne_player_name') || 'プレイヤー1';
 let hasJoinedRoom = false;
 let lastTurnPlayer = null;
-let isCpuThinking = false; // CPUの多重思考ガード
+let cpuTimer = null; // 安全なCPUターンタイマー
 
 let G = {
   round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], soldWorkplaces: [],
@@ -559,6 +559,7 @@ window.addEventListener('DOMContentLoaded', () => {
 function closeAndDestroyRoom() {
   if (!currentRoomId) return;
   if (!confirm(`部屋「${currentRoomId}」を完全に閉じて解散しますか？\n（全員が最初の画面に戻ります）`)) return;
+  if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
   localStorage.removeItem('ne_current_seat');
   db.ref('rooms/' + currentRoomId).remove().then(() => {
     alert(`部屋「${currentRoomId}」を解散しました。`);
@@ -618,29 +619,41 @@ function joinOrCreateRoom() {
 
         renderAll();
 
-        // 部屋にいる最初の人間プレイヤーがCPU手番を代行実行（P1固定を完全撤廃）
+        // 毎回の通信同期時にCPU手番を確実にチェック
         checkAndTriggerCpu();
       }
     }
   });
 }
 
+// 連続するCPUターンを安全かつ確実に実行するトリガー
 function checkAndTriggerCpu() {
-  if (!G || G.phase !== 'action') return;
+  if (!G || G.phase !== 'action') {
+    if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
+    return;
+  }
   const currentP = G.players[G.turnPlayer];
-  if (!currentP || currentP.isHuman) return;
+  if (!currentP || currentP.isHuman) {
+    if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
+    return;
+  }
 
-  // 部屋にいる「最初の人間プレイヤー」がCPU代行者になる
+  // 部屋にいる「先頭の人間プレイヤー」がCPU代行者になる
   const firstHuman = G.players.find(p => p.isHuman);
   const amICpuRunner = (firstHuman && firstHuman.id === mySeatIndex);
+  if (!amICpuRunner) return;
 
-  if (amICpuRunner && !isCpuThinking) {
-    isCpuThinking = true;
-    setTimeout(() => {
-      cpuTurnAdvanced(currentP);
-      isCpuThinking = false;
-    }, G.speed);
-  }
+  // 既にタイマー待機中なら多重セットを防ぐ
+  if (cpuTimer) return;
+
+  cpuTimer = setTimeout(() => {
+    cpuTimer = null;
+    if (!G || G.phase !== 'action') return;
+    const pNow = G.players[G.turnPlayer];
+    if (pNow && !pNow.isHuman) {
+      cpuTurnAdvanced(pNow);
+    }
+  }, G.speed || 550);
 }
 
 function renderLobbySlots(data) {
@@ -755,6 +768,7 @@ function removeSlot(idx) {
   });
 }
 
+// ゲーム開始（完全ランダムスタートプレイヤー）
 function hostStartGame() {
   initAudio();
   if (!currentRoomId) return;
@@ -794,7 +808,9 @@ function hostStartGame() {
     }
 
     const numP = slots.length;
+    // ★完全ランダムで初期スタPを決定（0 〜 numP-1）
     const startP = Math.floor(Math.random() * numP);
+
     const players = slots.map((s, idx) => ({
       id: idx,
       name: s.name || `P${idx+1}`,
@@ -808,6 +824,7 @@ function hostStartGame() {
       debts: 0
     }));
 
+    // スタPから時計回りに $5, $6, $7, $8 配布
     for (let order = 0; order < numP; order++) {
       players[(startP + order) % numP].money = 5 + order;
     }
@@ -834,7 +851,7 @@ function hostStartGame() {
       turnPlayer: startP,
       speed: 600,
       phase: 'action',
-      logHistory: [`[R1] 🎮 ゲーム開始！ (${numP}人対戦 / スタートP: ${players[startP].name})`],
+      logHistory: [`[R1] 🎲 スタP抽選: 【${players[startP].name}】がスタートプレイヤーに選ばれました！`],
       isCleaningUp: false
     };
 
@@ -842,6 +859,10 @@ function hostStartGame() {
       gameStarted: true,
       slots: slots,
       state: state
+    }).then(() => {
+      // 開始時にスタPがCPUだった場合、即座にタイマーを起動
+      G = sanitizeState(state);
+      checkAndTriggerCpu();
     }).catch(err => {
       alert('開始エラー: ' + err.message);
       btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
@@ -851,7 +872,10 @@ function hostStartGame() {
 
 function syncStateToFirebase(newG) {
   G = sanitizeState(newG);
-  db.ref(`rooms/${currentRoomId}/state`).set(G);
+  db.ref(`rooms/${currentRoomId}/state`).set(G).then(() => {
+    // データ送信直後にも次の手番がCPUなら確実にチェック
+    checkAndTriggerCpu();
+  });
 }
 
 // ==========================================
@@ -1126,7 +1150,7 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// CPU思考ルーチン（クラッシュ防止完全版）
+// CPU思考ルーチン（安定稼働版）
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   if (!cpu) return;
@@ -1313,7 +1337,7 @@ function executeCpuActionOnline(cpu, wp) {
 }
 
 // ==========================================
-// 給料・破棄・終了
+// 給料・破棄・クリーンアップ（時計回りスタP交代）
 // ==========================================
 function endActionPhaseOnline(st) {
   st.phase = 'wage';
@@ -1372,11 +1396,16 @@ function endActionPhaseOnline(st) {
     showFinalScoringModal(st);
   } else {
     st.phase = 'action';
+    // ★採石場が使われた場合はそのプレイヤー、使われなかった場合は時計回りで交代
     if (st.nextStartPlayer !== undefined) {
       st.startPlayer = st.nextStartPlayer;
       st.nextStartPlayer = undefined;
+    } else {
+      st.startPlayer = (st.startPlayer + 1) % st.players.length;
     }
     st.turnPlayer = st.startPlayer;
+    st.logHistory.unshift(`[R${st.round}] 🚩 ラウンド開始！スタP: 【${st.players[st.startPlayer].name}】`);
+
     (st.publicWorkplaces || []).forEach(w => w.workers = []);
     (st.soldWorkplaces || []).forEach(w => w.workers = []);
     (st.players || []).forEach(p => {
@@ -1474,6 +1503,7 @@ function renderAll() {
   mBox.innerHTML = '';
   (G.players || []).forEach(p => {
     const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
+    const isStartP = (G.startPlayer === p.id);
     const box = document.createElement('div');
     box.className = `monitor-p-box ${isTurn ? 'turn-now' : ''}`;
     const left = p.workers - p.placedWorkers;
@@ -1494,7 +1524,7 @@ function renderAll() {
 
     box.innerHTML = `
       <div class="monitor-header">
-        <span style="color:${P_COLORS[p.id] || '#aaa'}">${p.name}</span>
+        <span style="color:${P_COLORS[p.id] || '#aaa'}">${p.name}${isStartP ? ' 🚩' : ''}</span>
         <span class="monitor-workers-left">残 ${left}/${p.workers}</span>
       </div>
       <div class="monitor-spots">
@@ -1550,7 +1580,7 @@ function renderAll() {
       const isPassive = (b.sellable === false && b.id !== 'burn');
       const card = document.createElement('div');
       card.className = `card my-facility ${isPassive ? 'passive' : ''}`;
-      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me && me.placedWorkers < me.workers && canUseWorkplace(me, b));
+      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me.placedWorkers < me.workers && canUseWorkplace(me, b));
       card.innerHTML = `
         <div class="card-top"><span class="card-name">${b.name}</span><span class="card-tag">${b.tag}</span></div>
         <div class="card-sub">Cost: ${b.cost} / VP: ${b.vp}</div>
@@ -1592,11 +1622,12 @@ function renderAll() {
   pList.innerHTML = '';
   (G.players || []).forEach(p => {
     const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
+    const isStartP = (G.startPlayer === p.id);
     const box = document.createElement('div');
     box.className = `player-box p${p.id} ${isTurn ? 'active-turn' : ''}`;
     box.innerHTML = `
       <div class="p-top-row">
-        <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}</span>
+        <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}${isStartP ? ' 🚩スタP' : ''}</span>
         <span style="color:#15803d; font-weight:900;">$${p.money}</span>
       </div>
       <div class="p-details">

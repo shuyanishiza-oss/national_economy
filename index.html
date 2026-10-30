@@ -115,7 +115,6 @@
   }
   .banner-text { flex: 1; font-weight: bold; }
 
-  /* スクロール領域の完全修正 */
   #main-viewport {
     flex: 1 1 0%;
     min-height: 0;
@@ -124,7 +123,7 @@
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     padding: 12px;
-    padding-bottom: 140px; /* ナビバーに被らない十分な下部マージン */
+    padding-bottom: 140px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -185,10 +184,9 @@
   .p-b-pill { background: #fff; border: 1px solid #c4b5a0; border-radius: 3px; padding: 2px 6px; font-size: 0.72rem; font-weight: bold; display: flex; align-items: center; gap: 4px; }
   .p-b-pill.occupied { opacity: 0.5; text-decoration: line-through; }
 
-  /* ログ表示の完全修正（文字色・スクロール） */
   #log-stream {
     background: #16120e;
-    color: #f1f5f9; /* 明るい白文字で確実に表示 */
+    color: #f1f5f9;
     border: 1px solid #3d2f21;
     border-radius: 6px;
     padding: 10px;
@@ -560,16 +558,13 @@ let mySeatIndex = 0;
 let myPlayerName = localStorage.getItem('ne_player_name') || 'プレイヤー1';
 let hasJoinedRoom = false;
 let lastTurnPlayer = null;
-let isCpuThinking = false;
+let cpuTimerId = null; // 安全な単一タイマー管理
 
 let G = {
   round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], soldWorkplaces: [],
   players: [], startPlayer: 0, turnPlayer: 0, speed: 600, phase: 'action', logHistory: [], isCleaningUp: false
 };
 
-// ==========================================
-// Firebaseの空配列消失を防ぐサニタイズ関数
-// ==========================================
 function sanitizeState(st) {
   if (!st) return st;
   st.deck = st.deck || [];
@@ -597,6 +592,16 @@ window.addEventListener('DOMContentLoaded', () => {
     if (input) input.value = savedRoom;
   }
 });
+
+// 自動復旧ウォッチドッグ：CPUの手番なのにタイマーが切れて停止していたら自動再起動
+setInterval(() => {
+  if (G && G.phase === 'action' && currentRoomId) {
+    const p = G.players ? G.players[G.turnPlayer] : null;
+    if (p && !p.isHuman && !cpuTimerId) {
+      checkAndTriggerCpu();
+    }
+  }
+}, 1200);
 
 // ==========================================
 // ルーム管理 & 座席の永続化
@@ -663,27 +668,37 @@ function joinOrCreateRoom() {
 
         renderAll();
 
+        // CPU手番チェックを安全に実行
         checkAndTriggerCpu();
       }
     }
   });
 }
 
+// ロックを起こさない安全なCPU手番予約
 function checkAndTriggerCpu() {
   if (!G || G.phase !== 'action') return;
-  const currentP = G.players[G.turnPlayer];
+  const currentP = G.players ? G.players[G.turnPlayer] : null;
   if (!currentP || currentP.isHuman) return;
 
+  // 部屋にいる最初の人間がCPU代行
   const firstHuman = G.players.find(p => p.isHuman);
   const amICpuRunner = (firstHuman && firstHuman.id === mySeatIndex);
+  if (!amICpuRunner) return;
 
-  if (amICpuRunner && !isCpuThinking) {
-    isCpuThinking = true;
-    setTimeout(() => {
-      cpuTurnAdvanced(currentP);
-      isCpuThinking = false;
-    }, G.speed);
+  if (cpuTimerId) {
+    clearTimeout(cpuTimerId);
   }
+
+  cpuTimerId = setTimeout(() => {
+    cpuTimerId = null;
+    if (G && G.phase === 'action') {
+      const p = G.players ? G.players[G.turnPlayer] : null;
+      if (p && !p.isHuman) {
+        cpuTurnAdvanced(p);
+      }
+    }
+  }, G.speed || 600);
 }
 
 function renderLobbySlots(data) {
@@ -997,6 +1012,7 @@ function humanClickWorkplace(wpIdx, type, ownerId = null) {
 
     advanceTurn(G);
     syncStateToFirebase(G);
+    checkAndTriggerCpu();
   });
 }
 
@@ -1169,7 +1185,7 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// CPU思考ルーチン（クラッシュ防止完全版）
+// CPU思考ルーチン（完全連鎖版）
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   if (!cpu) return;
@@ -1191,12 +1207,14 @@ function cpuTurnAdvanced(cpu) {
     G.logHistory.unshift(`[R${rnd}] ⚠️ ${cpu.name} は配置可能な職場がなくパスしました。`);
     advanceTurn(G);
     syncStateToFirebase(G);
+    checkAndTriggerCpu();
     return;
   }
 
   candidates.forEach(cand => {
     let score = 10;
     const w = cand.wp;
+    if (!w) return;
 
     if (deficit > 0) {
       if (w.id === 'cafe' && G.household >= 5) score += 180 + Math.min(50, deficit * 15);
@@ -1260,10 +1278,14 @@ function cpuTurnAdvanced(cpu) {
   executeCpuActionOnline(cpu, wp);
   advanceTurn(G);
   syncStateToFirebase(G);
+
+  // 次のプレイヤーがCPUであれば確実に連鎖実行
+  checkAndTriggerCpu();
 }
 
 function executeCpuActionOnline(cpu, wp) {
   const rnd = G.round;
+  if (!wp) return;
 
   if (wp.id === 'mine') {
     cpu.hand.push(drawCardFromState(G));
@@ -1279,8 +1301,9 @@ function executeCpuActionOnline(cpu, wp) {
     cpu.hand.push(createGoods()); cpu.hand.push(createGoods());
     G.logHistory.unshift(`[R${rnd}] 🌾 ${cpu.name} が【農場】で消費財2枚を獲得。`);
   } else if (wp.id === 'cafe') {
-    G.household -= 5; cpu.money += 5;
-    G.logHistory.unshift(`[R${rnd}] ☕ ${cpu.name} が【珈琲店】で家計から$5を獲得。`);
+    const gain = Math.min(5, G.household);
+    G.household -= gain; cpu.money += gain;
+    G.logHistory.unshift(`[R${rnd}] ☕ ${cpu.name} が【珈琲店】で家計から$${gain}を獲得。`);
   } else if (wp.id === 'burn') {
     for (let i = 0; i < 5; i++) cpu.hand.push(createGoods());
     wp.pendingDiscard = true;
@@ -1324,8 +1347,9 @@ function executeCpuActionOnline(cpu, wp) {
       const c = cpu.hand.shift();
       if (c && !c.isGoods) G.discard.push(c);
     }
-    G.household -= rate[1]; cpu.money += rate[1];
-    G.logHistory.unshift(`[R${rnd}] 💰 ${cpu.name} が【${wp.name}】で手札を売却し家計から$${rate[1]}獲得。`);
+    const gain = Math.min(rate[1], G.household);
+    G.household -= gain; cpu.money += gain;
+    G.logHistory.unshift(`[R${rnd}] 💰 ${cpu.name} が【${wp.name}】で手札を売却し家計から$${gain}獲得。`);
   } else if (wp.id === 'carpenter' || wp.id === 'const_co' || wp.id === 'general_const') {
     const disc = (wp.id === 'const_co') ? 1 : 0;
     const buildables = cpu.hand.filter(c => !c.isGoods && (cpu.hand.length - 1 >= Math.max(0, c.cost - disc)));
@@ -1351,6 +1375,24 @@ function executeCpuActionOnline(cpu, wp) {
       cpu.hand.splice(cpu.hand.indexOf(target), 1);
       cpu.buildings.push({ ...target, ownerId: cpu.id, capacity: 1, workers: [] });
       G.logHistory.unshift(`[R${rnd}] 🚜 ${cpu.name} が【開拓民】で【${target.name}】を無料建設。`);
+    }
+  } else if (wp.id === 'niko_const') {
+    const builds = cpu.hand.filter(c => !c.isGoods);
+    const cg = {}; builds.forEach(c => { cg[c.cost] = (cg[c.cost] || 0) + 1; });
+    const validCost = Object.keys(cg).find(cost => cg[cost] >= 2 && cpu.hand.length >= 2 + parseInt(cost, 10));
+    if (validCost !== undefined) {
+      const costNum = parseInt(validCost, 10);
+      const pair = builds.filter(c => c.cost === costNum).slice(0, 2);
+      cpu.hand.splice(cpu.hand.indexOf(pair[0]), 1);
+      cpu.hand.splice(cpu.hand.indexOf(pair[1]), 1);
+      cpu.hand.sort((a,b) => a.vp - b.vp);
+      for (let i = 0; i < costNum; i++) {
+        const c = cpu.hand.shift();
+        if (c && !c.isGoods) G.discard.push(c);
+      }
+      cpu.buildings.push({ ...pair[0], ownerId: cpu.id, capacity: 1, workers: [] });
+      cpu.buildings.push({ ...pair[1], ownerId: cpu.id, capacity: 1, workers: [] });
+      G.logHistory.unshift(`[R${rnd}] 🏗️ ${cpu.name} が【二胡市建設】で2軒建設。`);
     }
   }
 }

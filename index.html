@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ナショナルエコノミー Online</title>
+<title>ナショナルエコノミー</title>
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -32,10 +32,10 @@
     background: #241c14; border: 2px solid var(--brass); border-radius: 8px;
     padding: 16px; display: flex; flex-direction: column; gap: 12px;
   }
-  .lobby-title { font-size: 1.15rem; font-weight: 900; color: var(--brass); }
+  .lobby-title { font-size: 1.2rem; font-weight: 900; color: var(--brass); text-align: center; }
   .lobby-input {
     background: #120e0b; border: 1px solid #775c35; color: #fff;
-    padding: 10px; border-radius: 6px; font-size: 0.9rem;
+    padding: 10px; border-radius: 6px; font-size: 0.95rem; text-align: center;
   }
   .lobby-btn {
     background: #15803d; color: #fff; border: none; padding: 10px 14px;
@@ -169,7 +169,6 @@
   .nav-item.active::after { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 3px; background: var(--brass); }
   .badge-counter { position: absolute; top: 6px; right: 20%; background: #dc2626; color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 900; }
 
-  /* カットイン演出 */
   #card-cutin-layer {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;
     display: flex; align-items: center; justify-content: center; z-index: 4000;
@@ -232,18 +231,18 @@
 <!-- ロビー画面 -->
 <div id="lobby-screen">
   <div class="lobby-card">
-    <div class="lobby-title">🌐 ナショナルエコノミー</div>
+    <div class="lobby-title">ナショナルエコノミー</div>
 
     <div id="room-controls" style="display:flex; flex-direction:column; gap:10px;">
       <div style="display:flex; gap:8px;">
         <input type="text" id="room-id-input" class="lobby-input" placeholder="部屋番号 (例: 1234)" style="flex:1;">
-        <button class="lobby-btn" onclick="joinOrCreateRoom()">合流 / 作成</button>
+        <button class="lobby-btn" onclick="joinOrCreateRoom()">部屋に入る / 作成</button>
       </div>
 
       <div id="room-lobby" style="display:none; flex-direction:column; gap:10px; margin-top:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div style="font-size:0.85rem; font-weight:bold; color:var(--brass);">
-            参加枠 (部屋: <span id="current-room-text" style="color:#fff;"></span>)
+            部屋: <span id="current-room-text" style="color:#fff;"></span>
           </div>
           <span id="slot-count-badge" style="font-size:0.75rem; color:#facc15; font-weight:bold;"></span>
         </div>
@@ -357,7 +356,7 @@
 
 <script>
 // ==========================================
-// Web Audio API による効果音生成
+// Web Audio API による効果音
 // ==========================================
 let audioEnabled = true;
 let audioCtx = null;
@@ -449,15 +448,8 @@ function showMyTurnToast() {
 }
 
 // ==========================================
-// プレイヤー識別 & Firebase
+// Firebase設定
 // ==========================================
-let myPlayerId = sessionStorage.getItem('ne_player_id');
-if (!myPlayerId) {
-  myPlayerId = 'usr_' + Math.random().toString(36).substring(2, 10);
-  sessionStorage.setItem('ne_player_id', myPlayerId);
-}
-let myPlayerName = localStorage.getItem('ne_player_name') || '';
-
 const firebaseConfig = {
   apiKey: "AIzaSyCensgfS0V_tUY4O9lV_RNXiLiK9tMmSYs",
   authDomain: "national-economy-403a1.firebaseapp.com",
@@ -511,7 +503,8 @@ const WAGE_MAP = [0, 2, 2, 3, 3, 3, 4, 4, 5, 5];
 const P_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea'];
 
 let currentRoomId = null;
-let mySeatIndex = null;
+let mySeatIndex = 0;
+let myPlayerName = localStorage.getItem('ne_player_name') || 'プレイヤー1';
 let hasJoinedRoom = false;
 let lastTurnPlayer = null;
 
@@ -520,14 +513,24 @@ let G = {
   players: [], startPlayer: 0, turnPlayer: 0, speed: 600, phase: 'action', logHistory: [], isCleaningUp: false
 };
 
+// リロード時に前回入力した部屋番号を自動補完
+window.addEventListener('DOMContentLoaded', () => {
+  const savedRoom = localStorage.getItem('ne_room_id');
+  if (savedRoom) {
+    const input = document.getElementById('room-id-input');
+    if (input) input.value = savedRoom;
+  }
+});
+
 // ==========================================
-// ルーム管理 & 排他着席制御
+// ルーム管理 & 座席の永続化
 // ==========================================
 function closeAndDestroyRoom() {
   if (!currentRoomId) return;
-  if (!confirm(`部屋「${currentRoomId}」を完全に閉じて解散しますか？\n（参加者全員がロビーに戻ります）`)) return;
+  if (!confirm(`部屋「${currentRoomId}」を完全に閉じて解散しますか？\n（全員が最初の画面に戻ります）`)) return;
+  localStorage.removeItem('ne_current_seat');
   db.ref('rooms/' + currentRoomId).remove().then(() => {
-    alert(`部屋「${currentRoomId}」を閉じました。`);
+    alert(`部屋「${currentRoomId}」を解散しました。`);
     location.reload();
   });
 }
@@ -537,6 +540,7 @@ function joinOrCreateRoom() {
   const rId = document.getElementById('room-id-input').value.trim();
   if (!rId) { alert('部屋番号を入力してください。'); return; }
   currentRoomId = rId;
+  localStorage.setItem('ne_room_id', currentRoomId);
 
   document.getElementById('current-room-text').innerText = rId;
   document.getElementById('room-lobby').style.display = 'flex';
@@ -547,35 +551,35 @@ function joinOrCreateRoom() {
     if (!data) {
       if (hasJoinedRoom) {
         alert(`部屋「${currentRoomId}」が解散されました。`);
+        localStorage.removeItem('ne_current_seat');
         location.reload();
         return;
       }
       hasJoinedRoom = true;
       mySeatIndex = 0;
-      if (!myPlayerName) myPlayerName = 'プレイヤー1';
+      localStorage.setItem('ne_current_seat', '0');
       const initialRoom = {
-        hostId: myPlayerId,
         gameStarted: false,
         slots: [
-          { type: 'human', name: myPlayerName, taken: true, playerId: myPlayerId },
-          { type: 'cpu', name: 'CPU 1', taken: false, playerId: '' },
-          { type: 'cpu', name: 'CPU 2', taken: false, playerId: '' }
+          { type: 'human', name: myPlayerName },
+          { type: 'cpu', name: 'CPU 1' },
+          { type: 'cpu', name: 'CPU 2' }
         ]
       };
       roomRef.set(initialRoom);
     } else {
       hasJoinedRoom = true;
-      const slots = data.slots || [];
-      const foundIdx = slots.findIndex(s => s.playerId === myPlayerId);
-      mySeatIndex = (foundIdx !== -1) ? foundIdx : null;
+      // ★リロード時：保存されている席番号があれば自動復帰
+      const savedSeat = localStorage.getItem('ne_current_seat');
+      if (savedSeat !== null && data.slots && data.slots[parseInt(savedSeat, 10)]) {
+        mySeatIndex = parseInt(savedSeat, 10);
+      }
 
       renderLobbySlots(data);
 
       if (data.gameStarted && data.state) {
         document.getElementById('lobby-screen').style.display = 'none';
         G = data.state;
-        const inGameIdx = (G.players || []).findIndex(p => p.playerId === myPlayerId);
-        if (inGameIdx !== -1) mySeatIndex = inGameIdx;
 
         if (G.phase === 'action' && G.turnPlayer === mySeatIndex && lastTurnPlayer !== mySeatIndex) {
           showMyTurnToast();
@@ -584,8 +588,7 @@ function joinOrCreateRoom() {
 
         renderAll();
 
-        const firstHumanIdx = G.players.findIndex(p => p.isHuman);
-        if (mySeatIndex === firstHumanIdx && G.phase === 'action' && !G.players[G.turnPlayer].isHuman) {
+        if (mySeatIndex === 0 && G.phase === 'action' && !G.players[G.turnPlayer].isHuman) {
           setTimeout(() => cpuTurnAdvanced(G.players[G.turnPlayer]), G.speed);
         }
       }
@@ -603,96 +606,66 @@ function renderLobbySlots(data) {
 
   slots.forEach((s, idx) => {
     const row = document.createElement('div');
-    const isMe = (s.playerId === myPlayerId);
-    const isOccupiedByOther = (s.taken && s.playerId && s.playerId !== myPlayerId);
+    const isMe = (mySeatIndex === idx);
 
     row.className = `slot-row ${isMe ? 'my-slot' : ''}`;
 
-    let badgeText = '';
-    if (isMe) badgeText = '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>';
-    else if (isOccupiedByOther) badgeText = '<span style="color:#4ade80; font-size:0.7rem;"> (参加中)</span>';
-    else badgeText = `<span style="font-size:0.7rem; color:#aaa;"> (${s.type === 'human' ? '空席' : 'CPU'})</span>`;
+    let statusText = '';
+    if (isMe) {
+      statusText = '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>';
+    } else if (s.type === 'human') {
+      statusText = '<span style="color:#4ade80; font-size:0.75rem;"> (参加中)</span>';
+    } else {
+      statusText = '<span style="font-size:0.75rem; color:#aaa;"> (CPU)</span>';
+    }
 
     row.innerHTML = `
       <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
         <strong style="color:${P_COLORS[idx] || '#aaa'}">P${idx+1}:</strong> 
         <span style="font-weight:bold;">${s.name}</span>
-        ${badgeText}
+        ${statusText}
       </div>
       <div style="display:flex; gap:4px; align-items:center;">
         ${isMe ? `
           <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="renameMe(${idx})">名前変更</button>
-          <button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="leaveSlot(${idx})">離席</button>
-        ` : ''}
-
-        ${!isMe && !isOccupiedByOther ? `
+        ` : `
           <button class="lobby-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="takeSlot(${idx})">ここに着席</button>
           <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="toggleSlotType(${idx})">${s.type === 'human' ? 'CPU化' : '人間に'}</button>
           ${slots.length > 2 ? `<button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="removeSlot(${idx})">🗑️</button>` : ''}
-        ` : ''}
-
-        ${isOccupiedByOther ? `
-          <span style="font-size:0.75rem; color:#888;">🔒 着席済</span>
-        ` : ''}
+        `}
       </div>
     `;
     container.appendChild(row);
   });
 }
 
+// 席移動処理（以前の席は100%自動でCPU化 & localStorageに席を記憶）
 function takeSlot(targetIdx) {
   initAudio();
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
-    const target = slots[targetIdx];
-    if (!target) return;
+    if (!slots[targetIdx]) return;
 
-    if (target.taken && target.playerId && target.playerId !== myPlayerId) {
-      alert('この席は既に他のプレイヤーが着席しています！');
-      return;
+    if (mySeatIndex !== null && mySeatIndex !== targetIdx && slots[mySeatIndex]) {
+      slots[mySeatIndex] = {
+        type: 'cpu',
+        name: `CPU ${mySeatIndex}`
+      };
     }
-
-    const defaultName = myPlayerName || target.name || `プレイヤー${targetIdx + 1}`;
-    const name = prompt('プレイヤー名を入力してください:', defaultName);
-    if (!name) return;
-
-    myPlayerName = name;
-    localStorage.setItem('ne_player_name', name);
-
-    slots.forEach((s, i) => {
-      if (s.playerId === myPlayerId && i !== targetIdx) {
-        s.type = 'cpu';
-        s.name = `CPU ${i}`;
-        s.taken = false;
-        s.playerId = '';
-      }
-    });
 
     slots[targetIdx] = {
       type: 'human',
-      name: myPlayerName,
-      taken: true,
-      playerId: myPlayerId
+      name: myPlayerName
     };
 
     mySeatIndex = targetIdx;
+    localStorage.setItem('ne_current_seat', targetIdx.toString());
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
 
-function leaveSlot(idx) {
-  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
-    let slots = snap.val() || [];
-    if (slots[idx] && slots[idx].playerId === myPlayerId) {
-      slots[idx] = { type: 'cpu', name: `CPU ${idx}`, taken: false, playerId: '' };
-      mySeatIndex = null;
-      db.ref(`rooms/${currentRoomId}/slots`).set(slots);
-    }
-  });
-}
-
 function renameMe(idx) {
-  const name = prompt('新しいプレイヤー名を入力:', myPlayerName);
+  const name = prompt('プレイヤー名を入力:', myPlayerName);
   if (!name) return;
   myPlayerName = name;
   localStorage.setItem('ne_player_name', name);
@@ -702,18 +675,11 @@ function renameMe(idx) {
 function toggleSlotType(idx) {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
-    const s = slots[idx];
-    if (!s) return;
-    if (s.taken && s.playerId && s.playerId !== myPlayerId) {
-      alert('他のプレイヤーが着席中のため変更できません。');
-      return;
-    }
-    const nextType = (s.type === 'human') ? 'cpu' : 'human';
+    if (!slots[idx]) return;
+    const nextType = (slots[idx].type === 'human') ? 'cpu' : 'human';
     slots[idx] = {
       type: nextType,
-      name: (nextType === 'cpu') ? `CPU ${idx}` : `待機中`,
-      taken: false,
-      playerId: ''
+      name: (nextType === 'cpu') ? `CPU ${idx}` : `プレイヤー${idx+1}`
     };
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
@@ -723,7 +689,7 @@ function addSlot() {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
     if (slots.length >= 4) return;
-    slots.push({ type: 'cpu', name: `CPU ${slots.length}`, taken: false, playerId: '' });
+    slots.push({ type: 'cpu', name: `CPU ${slots.length}` });
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
@@ -732,60 +698,46 @@ function removeSlot(idx) {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
     if (slots.length <= 2) { alert('最低2人必要です。'); return; }
-    const s = slots[idx];
-    if (s.taken && s.playerId && s.playerId !== myPlayerId) {
-      alert('他のプレイヤーが着席中のスロットは削除できません。');
-      return;
-    }
-    if (s.playerId === myPlayerId) mySeatIndex = null;
     slots.splice(idx, 1);
     slots.forEach((item, i) => {
       if (item.type === 'cpu' && item.name.startsWith('CPU')) item.name = `CPU ${i}`;
     });
+    if (mySeatIndex === idx) mySeatIndex = 0;
+    else if (mySeatIndex > idx) mySeatIndex--;
+    localStorage.setItem('ne_current_seat', mySeatIndex.toString());
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
 
-// 開始ボタンの堅牢化 & undefined 撲滅
+// ゲーム開始（自動着席＆席の完全保存）
 function hostStartGame() {
   initAudio();
-  if (!currentRoomId) {
-    alert('部屋番号が取得できていません。');
-    return;
-  }
+  if (!currentRoomId) return;
+
   const btn = document.getElementById('btn-start-online-game');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = '⏳ 開始中...';
-  }
+  btn.disabled = true;
+  btn.innerText = '⏳ 開始中...';
 
   db.ref(`rooms/${currentRoomId}`).once('value', (snap) => {
     const rData = snap.val();
     if (!rData) {
       alert('部屋が見つかりません。');
-      if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
+      btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
       return;
     }
-    const slots = rData.slots || [];
+    let slots = rData.slots || [];
     if (slots.length < 2) {
       alert('ゲームを開始するには最低2人の参加枠が必要です。');
-      if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
+      btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
       return;
     }
 
-    // 未着席なら自動的に席を割り当てる
-    let mySlot = slots.find(s => s.playerId === myPlayerId);
-    if (!mySlot) {
-      const emptyIdx = slots.findIndex(s => !s.taken || s.type === 'cpu');
-      const assignIdx = (emptyIdx !== -1) ? emptyIdx : 0;
-      slots[assignIdx] = {
-        type: 'human',
-        name: myPlayerName || 'プレイヤー1',
-        taken: true,
-        playerId: myPlayerId
-      };
-      mySeatIndex = assignIdx;
+    if (mySeatIndex === null || !slots[mySeatIndex] || slots[mySeatIndex].type !== 'human') {
+      const emptyIdx = slots.findIndex(s => s.type === 'human');
+      mySeatIndex = (emptyIdx !== -1) ? emptyIdx : 0;
+      slots[mySeatIndex] = { type: 'human', name: myPlayerName };
     }
+    localStorage.setItem('ne_current_seat', mySeatIndex.toString());
 
     const deck = [];
     CARD_SPECS.forEach(spec => {
@@ -800,7 +752,6 @@ function hostStartGame() {
     const startP = Math.floor(Math.random() * numP);
     const players = slots.map((s, idx) => ({
       id: idx,
-      playerId: s.playerId || '', // undefined を防ぐ
       name: s.name || `P${idx+1}`,
       isHuman: (s.type === 'human'),
       money: 0,
@@ -846,13 +797,10 @@ function hostStartGame() {
       gameStarted: true,
       slots: slots,
       state: state
-    }).catch((err) => {
-      alert('ゲーム開始エラー: ' + err.message);
-      if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
+    }).catch(err => {
+      alert('開始エラー: ' + err.message);
+      btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
     });
-  }, (err) => {
-    alert('通信エラー: ' + err.message);
-    if (btn) { btn.disabled = false; btn.innerText = '▶ ゲームを開始する'; }
   });
 }
 
@@ -933,7 +881,7 @@ function advanceTurn(st) {
 }
 
 // ==========================================
-// 人間プレイヤーのアクション処理
+// 人間アクション
 // ==========================================
 function humanClickWorkplace(wpIdx, type, ownerId = null) {
   if (G.phase !== 'action') return;
@@ -1129,7 +1077,7 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// 思考型AI
+// CPU思考ルーチン
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   const rnd = G.round;
@@ -1311,7 +1259,7 @@ function executeCpuActionOnline(cpu, wp) {
 }
 
 // ==========================================
-// 給料支払い・建物売却・クリーンアップ
+// 給料・破棄・終了
 // ==========================================
 function endActionPhaseOnline(st) {
   st.phase = 'wage';
@@ -1421,7 +1369,7 @@ function calculateScores(st) {
     const debtPenalty = effectiveDebts * 10;
 
     const total = cashVP + bldVP + bonusVP - debtPenalty;
-    return { name: p.name, cashVP, bldVP, bonusVP, debtPenalty, total, isMe: (p.playerId === myPlayerId) };
+    return { name: p.name, cashVP, bldVP, bonusVP, debtPenalty, total, isMe: (p.id === mySeatIndex) };
   }).sort((a,b) => b.total - a.total);
 }
 
@@ -1592,7 +1540,7 @@ function renderAll() {
     box.className = `player-box p${p.id} ${isTurn ? 'active-turn' : ''}`;
     box.innerHTML = `
       <div class="p-top-row">
-        <span>${p.name}${p.playerId === myPlayerId ? ' (あなた)' : ''}</span>
+        <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}</span>
         <span style="color:#15803d; font-weight:900;">$${p.money}</span>
       </div>
       <div class="p-details">
@@ -1630,9 +1578,6 @@ function renderAll() {
   logBox.innerHTML = (G.logHistory || []).map(l => `<div class="log-line">${l}</div>`).join('');
 }
 
-// ==========================================
-// 選択モーダル汎用
-// ==========================================
 function showCardSelectModal(title, cards, requiredCount, onConfirm) {
   const modalLayer = document.getElementById('modal-layer');
   const selected = new Set();

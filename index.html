@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ナショナルエコノミー Online (Full Version)</title>
+<title>ナショナルエコノミー Online (Full Polish)</title>
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -48,7 +48,16 @@
   .lobby-btn.danger { background: #b91c1c; }
   .lobby-btn.sec { background: #374151; }
   .lobby-btn.add-btn { background: #2563eb; width: 100%; margin-top: 4px; }
-  .slot-row { display: flex; justify-content: space-between; align-items: center; background: #1a140e; padding: 8px 12px; border-radius: 6px; border: 1px solid #4a3a2a; gap: 6px; }
+  
+  .slot-row {
+    display: flex; justify-content: space-between; align-items: center; background: #1a140e;
+    padding: 8px 12px; border-radius: 6px; border: 1px solid #4a3a2a; gap: 6px;
+  }
+  .slot-row.my-slot {
+    border-color: var(--brass);
+    background: #2a2015;
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.25);
+  }
 
   /* ゲーム画面ヘッダー */
   header { background: #18130e; border-bottom: 2px solid var(--brass); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -61,6 +70,7 @@
   .econ-val.household { color: #facc15; }
   .econ-val.treasury { color: #4ade80; }
   .header-actions { display: flex; align-items: center; gap: 6px; }
+  .btn-audio { background: #374151; border: 1px solid #4b5563; color: #fff; font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
   .btn-close-room { background: #7f1d1d; border: 1px solid #b91c1c; color: #fff; font-size: 0.65rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
 
   #all-workers-monitor {
@@ -97,12 +107,27 @@
   .section-header { font-size: 0.95rem; font-weight: 900; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #b5a389; padding-bottom: 4px; color: #2b1f14; }
 
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; }
-  .card { background: var(--card-bg); border: 1px solid #ad9c85; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 130px; position: relative; }
+  
+  /* カード演出用スタイル */
+  .card {
+    background: var(--card-bg); border: 1px solid #ad9c85; border-radius: 6px; padding: 8px;
+    display: flex; flex-direction: column; justify-content: space-between; min-height: 130px; position: relative;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s ease;
+  }
   .card.workplace { border-top: 4px solid #4a3826; }
   .card.my-facility { border-top: 4px solid var(--p0); background: #f0f6ff; }
   .card.sold-facility { border-top: 4px solid #b91c1c; background: #fff1f2; }
   .card.goods { background: #f0fdf4; border: 1px dashed #22c55e; }
   .card.passive { opacity: 0.9; background: #faf8f5; border-top: 4px solid #6b7280; }
+
+  /* 職場が利用されたときのフラッシュアニメーション */
+  .card.card-flash {
+    animation: flashEffect 0.6s ease-out;
+  }
+  @keyframes flashEffect {
+    0% { transform: scale(1.04); box-shadow: 0 0 16px rgba(212, 175, 55, 0.9); border-color: var(--brass); }
+    100% { transform: scale(1); box-shadow: none; }
+  }
 
   .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
   .card-name { font-size: 0.85rem; font-weight: 900; color: #111; }
@@ -110,12 +135,28 @@
   .card-sub { font-size: 0.72rem; color: #555; font-weight: bold; }
   .card-desc { font-size: 0.72rem; color: #222; line-height: 1.25; margin: 4px 0; flex: 1; }
 
-  .worker-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
-  .w-token { width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 0.68rem; font-weight: 900; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(0,0,0,0.4); }
+  /* 労働者トークンと着地アニメーション */
+  .worker-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 4px; min-height: 24px; }
+  .w-token {
+    width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 0.68rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.7);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    animation: tokenDrop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes tokenDrop {
+    0% { transform: translateY(-16px) scale(1.4); opacity: 0; }
+    70% { transform: translateY(2px) scale(0.9); }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
   .w-token.p0 { background: var(--p0); } .w-token.p1 { background: var(--p1); } .w-token.p2 { background: var(--p2); } .w-token.p3 { background: var(--p3); }
 
-  .btn-work { width: 100%; margin-top: 6px; background: #15803d; color: #fff; border: none; padding: 6px 0; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
-  .btn-work:disabled { background: #888; opacity: 0.6; cursor: not-allowed; }
+  .btn-work {
+    width: 100%; margin-top: 6px; background: #15803d; color: #fff; border: none; padding: 6px 0;
+    border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer;
+    box-shadow: 0 2px 0 #0f5132; transition: transform 0.05s ease;
+  }
+  .btn-work:active { transform: translateY(2px); box-shadow: none; }
+  .btn-work:disabled { background: #888; opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
   .player-box { background: #fff; border-radius: 6px; border: 2px solid #ccc; padding: 8px 10px; margin-bottom: 8px; }
   .player-box.p0 { border-left: 6px solid var(--p0); } .player-box.p1 { border-left: 6px solid var(--p1); } .player-box.p2 { border-left: 6px solid var(--p2); } .player-box.p3 { border-left: 6px solid var(--p3); }
@@ -136,6 +177,41 @@
   .nav-item.active::after { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 3px; background: var(--brass); }
   .badge-counter { position: absolute; top: 6px; right: 20%; background: #dc2626; color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 900; }
 
+  /* 演出：カード獲得カットインオーバーレイ */
+  #card-cutin-layer {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;
+    display: flex; align-items: center; justify-content: center; z-index: 4000;
+  }
+  .cutin-card {
+    background: #fff; border: 3px solid var(--brass); border-radius: 10px; padding: 16px;
+    width: 220px; box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(212,175,55,0.6);
+    color: #111; text-align: center; display: flex; flex-direction: column; gap: 6px;
+    animation: cardZoomIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes cardZoomIn {
+    0% { transform: scale(0.4) translateY(40px) rotate(-6deg); opacity: 0; }
+    20% { transform: scale(1.05) translateY(-6px) rotate(0deg); opacity: 1; }
+    30% { transform: scale(1); }
+    80% { transform: scale(1) translateY(0); opacity: 1; }
+    100% { transform: scale(0.6) translateY(120px); opacity: 0; }
+  }
+  .cutin-badge { font-size: 0.75rem; font-weight: 900; color: #15803d; letter-spacing: 1px; }
+  .cutin-name { font-size: 1.15rem; font-weight: 900; margin: 2px 0; }
+  .cutin-sub { font-size: 0.8rem; color: #555; font-weight: bold; }
+  .cutin-desc { font-size: 0.75rem; color: #222; background: #f7f3eb; padding: 6px; border-radius: 4px; }
+
+  /* 演出：手番トーストフラッシュ */
+  #turn-splash-toast {
+    position: fixed; top: 40%; left: 10%; right: 10%;
+    background: rgba(18, 16, 14, 0.96); border: 2px solid var(--brass); border-radius: 12px;
+    padding: 16px; text-align: center; z-index: 4500; pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    opacity: 0; transform: scale(0.8); transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  #turn-splash-toast.show { opacity: 1; transform: scale(1); }
+  .toast-title { font-size: 1.25rem; font-weight: 900; color: #60a5fa; margin-bottom: 4px; }
+  .toast-sub { font-size: 0.85rem; color: #facc15; font-weight: bold; }
+
   /* モーダル */
   .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 5000; padding: 14px; }
   .modal-box { background: var(--board-bg); border: 3px solid var(--brass); border-radius: 8px; padding: 16px; width: 100%; max-width: 540px; max-height: 88vh; display: flex; flex-direction: column; color: #222; }
@@ -143,13 +219,10 @@
   .modal-cards { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; }
   .modal-card { background: #fff; border: 2px solid #aaa; border-radius: 6px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
   .modal-card.chosen { border-color: #16a34a; background: #f0fdf4; outline: 3px solid #16a34a; transform: scale(0.98); }
-  .modal-card.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
   .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
   .m-btn { padding: 8px 16px; border-radius: 4px; font-size: 0.85rem; font-weight: 900; cursor: pointer; border: none; }
   .m-btn.ok { background: #16a34a; color: #fff; } .m-btn.ok:disabled { background: #999; cursor: not-allowed; }
-  .m-btn.cancel { background: #6b7280; color: #fff; }
 
-  /* 終了画面テーブル */
   .score-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.78rem; text-align: center; }
   .score-table th, .score-table td { border: 1px solid #b5a389; padding: 5px 4px; }
   .score-table th { background: #dcd0be; color: #333; }
@@ -159,12 +232,17 @@
 <body>
 
 <div id="error-screen-banner"></div>
+<div id="card-cutin-layer"></div>
+<div id="turn-splash-toast">
+  <div class="toast-title">YOUR TURN!</div>
+  <div class="toast-sub">労働者を派遣してください</div>
+</div>
 
 <!-- ロビー画面 -->
 <div id="lobby-screen">
   <div class="lobby-card">
     <div class="lobby-title">🌐 ナショナルエコノミー Online</div>
-    <div style="font-size:0.8rem; color:#aaa;">リアルタイム同期対戦（思考型上級AI & 全カード機能搭載）</div>
+    <div style="font-size:0.8rem; color:#aaa;">リアルタイム同期対戦（演出・効果音・上級AI搭載）</div>
 
     <div id="room-controls" style="display:flex; flex-direction:column; gap:10px;">
       <div style="display:flex; gap:8px;">
@@ -213,7 +291,8 @@
       <div style="font-size:0.75rem; color:#aaa; margin-left:4px;">国庫</div>
       <div class="econ-val treasury">∞</div>
     </div>
-    <button class="btn-close-room" onclick="closeAndDestroyRoom()">🚪 部屋解散</button>
+    <button class="btn-audio" id="btn-sound-toggle" onclick="toggleSound()">🔊 ON</button>
+    <button class="btn-close-room" onclick="closeAndDestroyRoom()">🚪 解散</button>
   </div>
 </header>
 
@@ -288,6 +367,123 @@
 
 <script>
 // ==========================================
+// Web Audio API による完全内蔵サウンドシステム
+// ==========================================
+let audioEnabled = true;
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) audioCtx = new AudioContext();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function toggleSound() {
+  audioEnabled = !audioEnabled;
+  document.getElementById('btn-sound-toggle').innerText = audioEnabled ? '🔊 ON' : '🔇 OFF';
+}
+
+function playTone(freq, type, duration, gainVal = 0.15) {
+  if (!audioEnabled) return;
+  initAudio();
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+// 木製コマ着地音（コトッ）
+function playWorkerSound() {
+  if (!audioEnabled) return;
+  initAudio();
+  playTone(280, 'triangle', 0.08, 0.2);
+  setTimeout(() => playTone(140, 'sine', 0.12, 0.3), 30);
+}
+
+// カードドロー音（シュッ）
+function playCardSound() {
+  if (!audioEnabled) return;
+  playTone(600, 'sine', 0.05, 0.1);
+  setTimeout(() => playTone(950, 'sine', 0.08, 0.12), 40);
+}
+
+// コイン獲得音（チャリン）
+function playCoinSound() {
+  if (!audioEnabled) return;
+  playTone(987.77, 'sine', 0.15, 0.15); // B5
+  setTimeout(() => playTone(1318.51, 'sine', 0.35, 0.2), 80); // E6
+}
+
+// 建築音（トントンッ）
+function playBuildSound() {
+  if (!audioEnabled) return;
+  playTone(320, 'square', 0.06, 0.12);
+  setTimeout(() => playTone(440, 'square', 0.1, 0.15), 90);
+}
+
+// 手番通知音（ポロロン）
+function playTurnSound() {
+  if (!audioEnabled) return;
+  playTone(523.25, 'triangle', 0.15, 0.15); // C5
+  setTimeout(() => playTone(659.25, 'triangle', 0.15, 0.15), 100); // E5
+  setTimeout(() => playTone(783.99, 'triangle', 0.3, 0.2), 200); // G5
+}
+
+// 演出：引いたカードのカットイン表示
+function showCardCutIn(card, titlePrefix = "GET CARD!") {
+  playCardSound();
+  const layer = document.getElementById('card-cutin-layer');
+  layer.innerHTML = `
+    <div class="cutin-card">
+      <div class="cutin-badge">✨ ${titlePrefix}</div>
+      <div class="cutin-name">${card.name}</div>
+      <div class="cutin-sub">${card.isGoods ? '消費財' : `Cost: ${card.cost} / VP: ${card.vp} (${card.tag})`}</div>
+      <div class="cutin-desc">${card.desc}</div>
+    </div>
+  `;
+  setTimeout(() => { layer.innerHTML = ''; }, 1200);
+}
+
+// 演出：手番開始トースト
+function showMyTurnToast() {
+  playTurnSound();
+  const toast = document.getElementById('turn-splash-toast');
+  toast.classList.add('show');
+  setTimeout(() => { toast.classList.remove('show'); }, 1400);
+}
+
+// 演出：職場フラッシュ
+function triggerCardFlash(cardElement) {
+  if (!cardElement) return;
+  cardElement.classList.remove('card-flash');
+  void cardElement.offsetWidth; // リフロー
+  cardElement.classList.add('card-flash');
+}
+
+// ==========================================
+// 固有プレイヤーID管理（端末の識別）
+// ==========================================
+let myPlayerId = sessionStorage.getItem('ne_player_id');
+if (!myPlayerId) {
+  myPlayerId = 'usr_' + Math.random().toString(36).substring(2, 10);
+  sessionStorage.setItem('ne_player_id', myPlayerId);
+}
+let myPlayerName = localStorage.getItem('ne_player_name') || '';
+
+// ==========================================
 // Firebase設定
 // ==========================================
 const firebaseConfig = {
@@ -348,6 +544,7 @@ const P_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea'];
 let currentRoomId = null;
 let mySeatIndex = null;
 let hasJoinedRoom = false;
+let lastTurnPlayer = null;
 
 let G = {
   round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], soldWorkplaces: [],
@@ -355,7 +552,7 @@ let G = {
 };
 
 // ==========================================
-// ルーム管理
+// ルーム管理 & 排他着席制御
 // ==========================================
 function closeAndDestroyRoom() {
   if (!currentRoomId) return;
@@ -367,6 +564,7 @@ function closeAndDestroyRoom() {
 }
 
 function joinOrCreateRoom() {
+  initAudio();
   const rId = document.getElementById('room-id-input').value.trim();
   if (!rId) { alert('部屋番号を入力してください。'); return; }
   currentRoomId = rId;
@@ -385,29 +583,41 @@ function joinOrCreateRoom() {
       }
       hasJoinedRoom = true;
       mySeatIndex = 0;
+      if (!myPlayerName) myPlayerName = 'プレイヤー1';
       const initialRoom = {
-        host: 0, gameStarted: false,
+        hostId: myPlayerId,
+        gameStarted: false,
         slots: [
-          { type: 'human', name: 'あなた (P1)', taken: true },
-          { type: 'cpu', name: 'CPU 1', taken: false },
-          { type: 'cpu', name: 'CPU 2', taken: false }
+          { type: 'human', name: myPlayerName, taken: true, playerId: myPlayerId },
+          { type: 'cpu', name: 'CPU 1', taken: false, playerId: null },
+          { type: 'cpu', name: 'CPU 2', taken: false, playerId: null }
         ]
       };
       roomRef.set(initialRoom);
     } else {
       hasJoinedRoom = true;
-      if (mySeatIndex === null) {
-        const emptyIdx = data.slots.findIndex(s => !s.taken);
-        mySeatIndex = (emptyIdx !== -1) ? emptyIdx : 0;
-      }
+      const slots = data.slots || [];
+      const foundIdx = slots.findIndex(s => s.playerId === myPlayerId);
+      mySeatIndex = (foundIdx !== -1) ? foundIdx : null;
+
       renderLobbySlots(data);
+
       if (data.gameStarted && data.state) {
         document.getElementById('lobby-screen').style.display = 'none';
         G = data.state;
+        const inGameIdx = (G.players || []).findIndex(p => p.playerId === myPlayerId);
+        if (inGameIdx !== -1) mySeatIndex = inGameIdx;
+
+        // 手番が回ってきた時のトースト演出
+        if (G.phase === 'action' && G.turnPlayer === mySeatIndex && lastTurnPlayer !== mySeatIndex) {
+          showMyTurnToast();
+        }
+        lastTurnPlayer = G.turnPlayer;
+
         renderAll();
 
-        // 部屋のP1（ホスト役）がCPU手番を管理
-        if (mySeatIndex === 0 && G.phase === 'action' && !G.players[G.turnPlayer].isHuman) {
+        const firstHumanIdx = G.players.findIndex(p => p.isHuman);
+        if (mySeatIndex === firstHumanIdx && G.phase === 'action' && !G.players[G.turnPlayer].isHuman) {
           setTimeout(() => cpuTurnAdvanced(G.players[G.turnPlayer]), G.speed);
         }
       }
@@ -425,23 +635,119 @@ function renderLobbySlots(data) {
 
   slots.forEach((s, idx) => {
     const row = document.createElement('div');
-    row.className = 'slot-row';
-    const isMe = (mySeatIndex === idx);
+    const isMe = (s.playerId === myPlayerId);
+    const isOccupiedByOther = (s.taken && s.playerId && s.playerId !== myPlayerId);
+
+    row.className = `slot-row ${isMe ? 'my-slot' : ''}`;
+
+    let badgeText = '';
+    if (isMe) badgeText = '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>';
+    else if (isOccupiedByOther) badgeText = '<span style="color:#4ade80; font-size:0.7rem;"> (参加中)</span>';
+    else badgeText = `<span style="font-size:0.7rem; color:#aaa;"> (${s.type === 'human' ? '空席' : 'CPU'})</span>`;
 
     row.innerHTML = `
       <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
         <strong style="color:${P_COLORS[idx] || '#aaa'}">P${idx+1}:</strong> 
         <span style="font-weight:bold;">${s.name}</span>
-        <span style="font-size:0.7rem; color:#aaa;">(${s.type === 'human' ? '人間' : 'CPU'})</span>
-        ${isMe ? '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>' : ''}
+        ${badgeText}
       </div>
       <div style="display:flex; gap:4px; align-items:center;">
-        ${!isMe ? `<button class="lobby-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="takeSlot(${idx})">着席</button>` : ''}
-        <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="toggleSlotType(${idx})">${s.type === 'human' ? 'CPU化' : '人間化'}</button>
-        ${slots.length > 2 ? `<button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="removeSlot(${idx})">🗑️ 削除</button>` : ''}
+        ${isMe ? `
+          <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="renameMe(${idx})">名前変更</button>
+          <button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="leaveSlot(${idx})">離席</button>
+        ` : ''}
+
+        ${!isMe && !isOccupiedByOther ? `
+          <button class="lobby-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="takeSlot(${idx})">ここに着席</button>
+          <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="toggleSlotType(${idx})">${s.type === 'human' ? 'CPU化' : '人間に'}</button>
+          ${slots.length > 2 ? `<button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="removeSlot(${idx})">🗑️</button>` : ''}
+        ` : ''}
+
+        ${isOccupiedByOther ? `
+          <span style="font-size:0.75rem; color:#888;">🔒 着席済</span>
+        ` : ''}
       </div>
     `;
     container.appendChild(row);
+  });
+}
+
+function takeSlot(targetIdx) {
+  initAudio();
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
+    let slots = snap.val() || [];
+    const target = slots[targetIdx];
+    if (!target) return;
+
+    if (target.taken && target.playerId && target.playerId !== myPlayerId) {
+      alert('この席は既に他のプレイヤーが着席しています！');
+      return;
+    }
+
+    const defaultName = myPlayerName || target.name || `プレイヤー${targetIdx + 1}`;
+    const name = prompt('プレイヤー名を入力してください:', defaultName);
+    if (!name) return;
+
+    myPlayerName = name;
+    localStorage.setItem('ne_player_name', name);
+
+    slots.forEach((s, i) => {
+      if (s.playerId === myPlayerId && i !== targetIdx) {
+        s.type = 'cpu';
+        s.name = `CPU ${i}`;
+        s.taken = false;
+        s.playerId = null;
+      }
+    });
+
+    slots[targetIdx] = {
+      type: 'human',
+      name: myPlayerName,
+      taken: true,
+      playerId: myPlayerId
+    };
+
+    mySeatIndex = targetIdx;
+    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
+  });
+}
+
+function leaveSlot(idx) {
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
+    let slots = snap.val() || [];
+    if (slots[idx] && slots[idx].playerId === myPlayerId) {
+      slots[idx] = { type: 'cpu', name: `CPU ${idx}`, taken: false, playerId: null };
+      mySeatIndex = null;
+      db.ref(`rooms/${currentRoomId}/slots`).set(slots);
+    }
+  });
+}
+
+function renameMe(idx) {
+  const name = prompt('新しいプレイヤー名を入力:', myPlayerName);
+  if (!name) return;
+  myPlayerName = name;
+  localStorage.setItem('ne_player_name', name);
+  db.ref(`rooms/${currentRoomId}/slots/${idx}/name`).set(name);
+}
+
+function toggleSlotType(idx) {
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
+    let slots = snap.val() || [];
+    const s = slots[idx];
+    if (!s) return;
+    if (s.taken && s.playerId && s.playerId !== myPlayerId) {
+      alert('他のプレイヤーが着席中のため変更できません。');
+      return;
+    }
+    const nextType = (s.type === 'human') ? 'cpu' : 'human';
+    slots[idx] = {
+      type: nextType,
+      name: (nextType === 'cpu') ? `CPU ${idx}` : `待機中`,
+      taken: false,
+      playerId: null
+    };
+    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
 
@@ -449,7 +755,7 @@ function addSlot() {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
     if (slots.length >= 4) return;
-    slots.push({ type: 'cpu', name: `CPU ${slots.length}`, taken: false });
+    slots.push({ type: 'cpu', name: `CPU ${slots.length}`, taken: false, playerId: null });
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
@@ -457,36 +763,33 @@ function addSlot() {
 function removeSlot(idx) {
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
     let slots = snap.val() || [];
-    if (slots.length <= 2) return;
+    if (slots.length <= 2) { alert('最低2人必要です。'); return; }
+    const s = slots[idx];
+    if (s.taken && s.playerId && s.playerId !== myPlayerId) {
+      alert('他のプレイヤーが着席中のスロットは削除できません。');
+      return;
+    }
+    if (s.playerId === myPlayerId) mySeatIndex = null;
     slots.splice(idx, 1);
-    slots.forEach((s, i) => { if (s.name.startsWith('CPU')) s.name = `CPU ${i}`; });
-    if (mySeatIndex === idx) mySeatIndex = 0;
-    else if (mySeatIndex > idx) mySeatIndex--;
+    slots.forEach((item, i) => {
+      if (item.type === 'cpu' && item.name.startsWith('CPU')) item.name = `CPU ${i}`;
+    });
     db.ref(`rooms/${currentRoomId}/slots`).set(slots);
   });
 }
 
-function takeSlot(idx) {
-  mySeatIndex = idx;
-  const name = prompt('プレイヤー名を入力:', `プレイヤー${idx+1}`) || `プレイヤー${idx+1}`;
-  db.ref(`rooms/${currentRoomId}/slots/${idx}`).update({ type: 'human', name: name, taken: true });
-}
-
-function toggleSlotType(idx) {
-  db.ref(`rooms/${currentRoomId}/slots/${idx}`).once('value', (snap) => {
-    const cur = snap.val();
-    const nextType = cur.type === 'human' ? 'cpu' : 'human';
-    db.ref(`rooms/${currentRoomId}/slots/${idx}`).update({
-      type: nextType, name: nextType === 'cpu' ? `CPU ${idx}` : `待機中`, taken: (nextType === 'cpu')
-    });
-  });
-}
-
 function hostStartGame() {
+  initAudio();
   db.ref(`rooms/${currentRoomId}`).once('value', (snap) => {
     const rData = snap.val();
     const slots = rData.slots || [];
     if (slots.length < 2) return;
+
+    const mySlot = slots.find(s => s.playerId === myPlayerId);
+    if (!mySlot) {
+      alert('あなたはまだいずれの席にも着席していません。席を選んでから開始してください。');
+      return;
+    }
 
     const deck = [];
     CARD_SPECS.forEach(spec => {
@@ -500,7 +803,7 @@ function hostStartGame() {
     const numP = slots.length;
     const startP = Math.floor(Math.random() * numP);
     const players = slots.map((s, idx) => ({
-      id: idx, name: s.name, isHuman: (s.type === 'human'),
+      id: idx, playerId: s.playerId, name: s.name, isHuman: (s.type === 'human'),
       money: 0, workers: 2, newWorkers: 0, placedWorkers: 0,
       buildings: [], hand: [], debts: 0
     }));
@@ -621,6 +924,8 @@ function humanClickWorkplace(wpIdx, type, ownerId = null) {
 
   if (!canUseWorkplace(p, wp)) { alert('この職場は現在利用できません。'); return; }
 
+  playWorkerSound();
+
   executeActionOnline(p, wp, () => {
     if (!wp.workers) wp.workers = [];
     wp.workers.push(mySeatIndex);
@@ -635,45 +940,58 @@ function executeActionOnline(p, wp, doneCb) {
   const rnd = G.round;
 
   if (wp.id === 'mine') {
-    p.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] ${p.name} が【鉱山】でカードを1枚引きました。`);
+    const card = drawCardFromState(G);
+    p.hand.push(card);
+    showCardCutIn(card, "鉱山でカード獲得！");
+    G.logHistory.unshift(`[R${rnd}] ${p.name} が【鉱山】で【${card.name}】を引きました。`);
     doneCb();
   } else if (wp.id === 'quarry') {
-    p.hand.push(drawCardFromState(G));
+    const card = drawCardFromState(G);
+    p.hand.push(card);
     G.nextStartPlayer = p.id;
-    G.logHistory.unshift(`[R${rnd}] 🚩 ${p.name} が【採石場】でドロー＆次RのスタPを奪取！`);
+    showCardCutIn(card, "採石場でスタP奪取！");
+    G.logHistory.unshift(`[R${rnd}] 🚩 ${p.name} が【採石場】で【${card.name}】を引き次RスタPへ！`);
     doneCb();
   } else if (wp.id === 'school') {
     p.newWorkers++;
+    playTone(587.33, 'triangle', 0.25, 0.2); // D5
     G.logHistory.unshift(`[R${rnd}] 🎓 ${p.name} が【学校】で労働者を1名追加雇用。`);
     doneCb();
   } else if (wp.id === 'farm') {
-    p.hand.push(createGoods()); p.hand.push(createGoods());
+    const g1 = createGoods(); const g2 = createGoods();
+    p.hand.push(g1); p.hand.push(g2);
+    showCardCutIn(g1, "農場で消費財×2獲得！");
     G.logHistory.unshift(`[R${rnd}] 🌾 ${p.name} が【農場】で消費財2枚を獲得。`);
     doneCb();
   } else if (wp.id === 'cafe') {
+    playCoinSound();
     G.household -= 5; p.money += 5;
     G.logHistory.unshift(`[R${rnd}] ☕ ${p.name} が【珈琲店】で家計から$5を獲得。`);
     doneCb();
   } else if (wp.id === 'burn') {
     for (let i = 0; i < 5; i++) p.hand.push(createGoods());
     wp.pendingDiscard = true;
+    showCardCutIn(createGoods(), "焼畑で消費財×5獲得！");
     G.logHistory.unshift(`[R${rnd}] 🔥 ${p.name} が【焼畑】で消費財5枚を獲得（R終了時破棄）。`);
     doneCb();
   } else if (wp.id === 'orchard') {
     const toDraw = Math.max(0, 4 - p.hand.length);
     for (let i = 0; i < toDraw; i++) p.hand.push(createGoods());
+    if (toDraw > 0) showCardCutIn(createGoods(), `果樹園で消費財×${toDraw}獲得！`);
     G.logHistory.unshift(`[R${rnd}] 🍎 ${p.name} が【果樹園】で消費財${toDraw}枚を獲得。`);
     doneCb();
   } else if (wp.id === 'plantation') {
     for (let i = 0; i < 3; i++) p.hand.push(createGoods());
+    showCardCutIn(createGoods(), "大農園で消費財×3獲得！");
     G.logHistory.unshift(`[R${rnd}] 🌴 ${p.name} が【大農園】で消費財3枚を獲得。`);
     doneCb();
   } else if (wp.id === 'steelworks') {
+    playCardSound();
     for (let i = 0; i < 3; i++) p.hand.push(drawCardFromState(G));
     G.logHistory.unshift(`[R${rnd}] 🏭 ${p.name} が【製鉄所】でカード3枚を引きました。`);
     doneCb();
   } else if (wp.id === 'chem_factory') {
+    playCardSound();
     const dCount = (p.hand.length === 0) ? 4 : 2;
     for (let i = 0; i < dCount; i++) p.hand.push(drawCardFromState(G));
     G.logHistory.unshift(`[R${rnd}] 🧪 ${p.name} が【化学工場】でカード${dCount}枚をドロー。`);
@@ -684,6 +1002,7 @@ function executeActionOnline(p, wp, doneCb) {
     showCardSelectModal('【設計事務所】獲得するカードを1枚選択', pool, 1, (chosen) => {
       const picked = pool.splice(chosen[0], 1)[0];
       p.hand.push(picked);
+      showCardCutIn(picked, "設計事務所で獲得！");
       pool.forEach(c => { if (!c.isGoods) G.discard.push(c); });
       G.logHistory.unshift(`[R${rnd}] 📐 ${p.name} が【設計事務所】で【${picked.name}】を獲得。`);
       doneCb();
@@ -696,6 +1015,7 @@ function executeActionOnline(p, wp, doneCb) {
         const c = p.hand.splice(idx, 1)[0];
         if (!c.isGoods) G.discard.push(c);
       });
+      playCardSound();
       for (let i = 0; i < gain; i++) p.hand.push(drawCardFromState(G));
       G.logHistory.unshift(`[R${rnd}] ⚙️ ${p.name} が【${wp.name}】で手札${req}枚を捨て${gain}枚ドロー。`);
       doneCb();
@@ -707,6 +1027,7 @@ function executeActionOnline(p, wp, doneCb) {
         const c = p.hand.splice(idx, 1)[0];
         if (!c.isGoods) G.discard.push(c);
       });
+      playCoinSound();
       G.household -= rate[1]; p.money += rate[1];
       G.logHistory.unshift(`[R${rnd}] 💰 ${p.name} が【${wp.name}】で手札を売却し家計から$${rate[1]}獲得。`);
       doneCb();
@@ -719,13 +1040,16 @@ function executeActionOnline(p, wp, doneCb) {
       const cost = Math.max(0, target.cost - disc);
       const handWithout = p.hand.filter(c => c !== target);
       if (cost === 0) {
+        playBuildSound();
         p.hand.splice(p.hand.indexOf(target), 1);
         p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
+        showCardCutIn(target, "BUILD COMPLETE!");
         if (wp.id === 'general_const') { p.hand.push(drawCardFromState(G)); p.hand.push(drawCardFromState(G)); }
         G.logHistory.unshift(`[R${rnd}] 🔨 ${p.name} が【${target.name}】を無料建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
         doneCb();
       } else {
         showCardSelectModal(`【${target.name}】のコストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, (cSel) => {
+          playBuildSound();
           cSel.sort((a,b) => b-a).forEach(idx => {
             const c = handWithout.splice(idx, 1)[0];
             p.hand.splice(p.hand.indexOf(c), 1);
@@ -733,6 +1057,7 @@ function executeActionOnline(p, wp, doneCb) {
           });
           p.hand.splice(p.hand.indexOf(target), 1);
           p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
+          showCardCutIn(target, "BUILD COMPLETE!");
           if (wp.id === 'general_const') { p.hand.push(drawCardFromState(G)); p.hand.push(drawCardFromState(G)); }
           G.logHistory.unshift(`[R${rnd}] 🔨 ${p.name} が【${target.name}】を建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
           doneCb();
@@ -742,9 +1067,11 @@ function executeActionOnline(p, wp, doneCb) {
   } else if (wp.id === 'settler') {
     const farms = p.hand.filter(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
     showCardSelectModal('【開拓民】無料建設する農園を選択', farms, 1, (bSel) => {
+      playBuildSound();
       const target = farms[bSel[0]];
       p.hand.splice(p.hand.indexOf(target), 1);
       p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
+      showCardCutIn(target, "開拓民で無料建設！");
       G.logHistory.unshift(`[R${rnd}] 🚜 ${p.name} が【開拓民】で【${target.name}】を無料建設！`);
       doneCb();
     });
@@ -757,6 +1084,7 @@ function executeActionOnline(p, wp, doneCb) {
       const cost = b1.cost;
       const handWithout = p.hand.filter(c => c !== b1 && c !== b2);
       showCardSelectModal(`コストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, (cSel) => {
+        playBuildSound();
         cSel.sort((a,b) => b-a).forEach(idx => {
           const c = handWithout.splice(idx, 1)[0];
           p.hand.splice(p.hand.indexOf(c), 1);
@@ -766,6 +1094,7 @@ function executeActionOnline(p, wp, doneCb) {
         p.hand.splice(p.hand.indexOf(b2), 1);
         p.buildings.push({ ...b1, ownerId: p.id, capacity: 1, workers: [] });
         p.buildings.push({ ...b2, ownerId: p.id, capacity: 1, workers: [] });
+        showCardCutIn(b1, "二胡市建設で2軒同時建築！");
         G.logHistory.unshift(`[R${rnd}] 🏗️ ${p.name} が【二胡市建設】で【${b1.name}】と【${b2.name}】を同時建設！`);
         doneCb();
       });
@@ -776,7 +1105,7 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// 思考型上級AIロジック（完全復元）
+// 思考型上級AIロジック（完全復元 ＆ サウンド連動）
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   const rnd = G.round;
@@ -784,7 +1113,6 @@ function cpuTurnAdvanced(cpu) {
   const upcomingWage = (cpu.workers + cpu.newWorkers) * wagePerWorker;
   const deficit = upcomingWage - cpu.money;
 
-  // 全利用可能な職場リスト（公共＋自分所有＋売却公共）
   const candidates = [];
   G.publicWorkplaces.forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'public', idx: idx }); });
   cpu.buildings.forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'my', idx: idx }); });
@@ -797,12 +1125,10 @@ function cpuTurnAdvanced(cpu) {
     return;
   }
 
-  // スコアリングエンジン
   candidates.forEach(cand => {
     let score = 10;
     const w = cand.wp;
 
-    // 1. 給料逆算＆資金確保
     if (deficit > 0) {
       if (w.id === 'cafe' && G.household >= 5) score += 180 + Math.min(50, deficit * 15);
       if (w.id === 'restaurant' && G.household >= 15 && cpu.hand.length >= 1) score += 260 + deficit * 15;
@@ -812,7 +1138,6 @@ function cpuTurnAdvanced(cpu) {
       }
     }
 
-    // 2. 労働者増員（序盤優先）
     if (w.id === 'school') {
       const dorms = cpu.buildings.filter(b => b.id === 'dormitory').length;
       if (cpu.workers + cpu.newWorkers < 4 + dorms) {
@@ -821,7 +1146,6 @@ function cpuTurnAdvanced(cpu) {
       }
     }
 
-    // 3. 建設エンジン
     if (['carpenter', 'const_co', 'general_const', 'settler', 'niko_const'].includes(w.id)) {
       const buildables = cpu.hand.filter(c => !c.isGoods);
       if (buildables.length > 0) {
@@ -833,7 +1157,6 @@ function cpuTurnAdvanced(cpu) {
       }
     }
 
-    // 4. 手札・消費財生産＆交換
     if (['factory', 'auto_plant'].includes(w.id)) {
       const discCount = (w.id === 'factory') ? 2 : 3;
       const lowCards = cpu.hand.filter(c => c.isGoods || c.vp <= 8);
@@ -846,13 +1169,10 @@ function cpuTurnAdvanced(cpu) {
     if (w.id === 'steelworks') score += 130;
     if (w.id === 'chem_factory') score += (cpu.hand.length === 0) ? 170 : 100;
 
-    // 5. 採石場ハイジャック判定
     if (w.id === 'quarry') {
       score += 70;
       if (G.startPlayer !== cpu.id && [3, 5, 7].includes(rnd)) score += 60;
     }
-
-    // 6. 鉱山（セーフティネット）
     if (w.id === 'mine') score += 40;
 
     cand.score = score;
@@ -861,6 +1181,8 @@ function cpuTurnAdvanced(cpu) {
   candidates.sort((a,b) => b.score - a.score);
   const best = candidates[0];
   const wp = best.wp;
+
+  playWorkerSound();
 
   if (!wp.workers) wp.workers = [];
   wp.workers.push(cpu.id);
@@ -975,10 +1297,9 @@ function endActionPhaseOnline(st) {
     const totalWorkers = p.workers + p.newWorkers;
     const due = totalWorkers * WAGE_MAP[st.round];
 
-    // 不足時の建物売却ロジック（売却額＝コスト）
     if (p.money < due) {
       const sellables = p.buildings.filter(b => b.sellable !== false);
-      sellables.sort((a,b) => a.vp - b.vp); // 低VPから売却
+      sellables.sort((a,b) => a.vp - b.vp);
       while (p.money < due && sellables.length > 0) {
         const sold = sellables.shift();
         p.buildings.splice(p.buildings.indexOf(sold), 1);
@@ -1004,7 +1325,6 @@ function endActionPhaseOnline(st) {
     p.workers += p.newWorkers;
     p.newWorkers = 0;
 
-    // 手札上限超過の破棄（倉庫効果を反映）
     const limit = getHandLimit(p);
     while (p.hand.length > limit) {
       p.hand.sort((a,b) => a.vp - b.vp);
@@ -1013,7 +1333,6 @@ function endActionPhaseOnline(st) {
     }
   });
 
-  // 焼畑のラウンド終了破棄
   st.publicWorkplaces = st.publicWorkplaces.filter(w => w.id !== 'burn');
   st.soldWorkplaces = st.soldWorkplaces.filter(w => w.id !== 'burn');
   st.players.forEach(p => { p.buildings = p.buildings.filter(b => b.id !== 'burn'); });
@@ -1037,7 +1356,6 @@ function endActionPhaseOnline(st) {
       p.buildings.forEach(b => b.workers = []);
     });
 
-    // 公共職場の新規解放
     if (st.round === 2) st.publicWorkplaces.push({ id: 'stall', name: '露店', desc: '手札1枚→$6', capacity: 99, moneyReq: 6, workers: [] });
     if (st.round === 3) st.publicWorkplaces.push({ id: 'market', name: '市場', desc: '手札2枚→$12', capacity: 99, moneyReq: 12, workers: [] });
     if (st.round === 5) st.publicWorkplaces.push({ id: 'supermarket', name: 'スーパー', desc: '手札3枚→$18', capacity: 99, moneyReq: 18, workers: [] });
@@ -1047,7 +1365,7 @@ function endActionPhaseOnline(st) {
 }
 
 // ==========================================
-// 最終スコア集計モーダル（完全復元）
+// 最終スコア集計モーダル
 // ==========================================
 function calculateScores(st) {
   return st.players.map(p => {
@@ -1074,13 +1392,12 @@ function calculateScores(st) {
     const factories = p.buildings.filter(b => b.tag === '工場').length;
     bonusVP += railways * (factories * 8);
 
-    // 法律事務所による負債免除（5枚まで）
     const lawFirms = p.buildings.filter(b => b.id === 'law_firm').length;
     const effectiveDebts = Math.max(0, p.debts - lawFirms * 5);
     const debtPenalty = effectiveDebts * 10;
 
     const total = cashVP + bldVP + bonusVP - debtPenalty;
-    return { name: p.name, cashVP, bldVP, bonusVP, debtPenalty, total, isMe: (p.id === mySeatIndex) };
+    return { name: p.name, cashVP, bldVP, bonusVP, debtPenalty, total, isMe: (p.playerId === myPlayerId) };
   }).sort((a,b) => b.total - a.total);
 }
 
@@ -1256,7 +1573,7 @@ function renderAll() {
     box.className = `player-box p${p.id} ${isTurn ? 'active-turn' : ''}`;
     box.innerHTML = `
       <div class="p-top-row">
-        <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}</span>
+        <span>${p.name}${p.playerId === myPlayerId ? ' (あなた)' : ''}</span>
         <span style="color:#15803d; font-weight:900;">$${p.money}</span>
       </div>
       <div class="p-details">
@@ -1330,6 +1647,7 @@ function showCardSelectModal(title, cards, requiredCount, onConfirm) {
   }
 
   window.toggleMCard = (idx) => {
+    playTone(400, 'sine', 0.05, 0.1);
     if (selected.has(idx)) selected.delete(idx);
     else if (selected.size < requiredCount) selected.add(idx);
     renderModal();

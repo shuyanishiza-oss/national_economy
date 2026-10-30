@@ -15,7 +15,19 @@
     --brass: #d4af37; --p0: #2563eb; --p1: #dc2626; --p2: #16a34a; --p3: #9333ea;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body { background: var(--bg-dark); color: #e5e5e5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  
+  html, body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg-dark);
+    color: #e5e5e5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
 
   #error-screen-banner {
     display: none; background: #dc2626; color: #fff; padding: 10px; font-size: 0.8rem;
@@ -27,6 +39,7 @@
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: #18130e; z-index: 3000; display: flex; flex-direction: column;
     padding: 16px; overflow-y: auto; gap: 14px;
+    -webkit-overflow-scrolling: touch;
   }
   .lobby-card {
     background: #241c14; border: 2px solid var(--brass); border-radius: 8px;
@@ -102,7 +115,20 @@
   }
   .banner-text { flex: 1; font-weight: bold; }
 
-  #main-viewport { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 90px; }
+  /* スクロール領域の完全修正 */
+  #main-viewport {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    padding: 12px;
+    padding-bottom: 140px; /* ナビバーに被らない十分な下部マージン */
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
   .tab-content { display: none; }
   .tab-content.active { display: flex; flex-direction: column; gap: 12px; }
 
@@ -159,8 +185,27 @@
   .p-b-pill { background: #fff; border: 1px solid #c4b5a0; border-radius: 3px; padding: 2px 6px; font-size: 0.72rem; font-weight: bold; display: flex; align-items: center; gap: 4px; }
   .p-b-pill.occupied { opacity: 0.5; text-decoration: line-through; }
 
-  #log-stream { background: #16120e; border: 1px solid #3d2f21; border-radius: 6px; padding: 10px; height: 480px; overflow-y: auto; font-size: 0.75rem; line-height: 1.4; display: flex; flex-direction: column-reverse; gap: 6px; }
-  .log-line { border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 4px; }
+  /* ログ表示の完全修正（文字色・スクロール） */
+  #log-stream {
+    background: #16120e;
+    color: #f1f5f9; /* 明るい白文字で確実に表示 */
+    border: 1px solid #3d2f21;
+    border-radius: 6px;
+    padding: 10px;
+    height: 480px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+  }
+  .log-line {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 4px;
+    color: #f1f5f9;
+  }
 
   nav#bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 74px; background: #16120e; border-top: 2px solid var(--brass); display: flex; z-index: 100; }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; background: transparent; border: none; font-size: 0.75rem; font-weight: bold; cursor: pointer; position: relative; }
@@ -206,7 +251,7 @@
   .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 5000; padding: 14px; }
   .modal-box { background: var(--board-bg); border: 3px solid var(--brass); border-radius: 8px; padding: 16px; width: 100%; max-width: 540px; max-height: 88vh; display: flex; flex-direction: column; color: #222; }
   .modal-title { font-size: 1.05rem; font-weight: 900; margin-bottom: 6px; color: #111; }
-  .modal-cards { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; }
+  .modal-cards { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; -webkit-overflow-scrolling: touch; }
   .modal-card { background: #fff; border: 2px solid #aaa; border-radius: 6px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
   .modal-card.chosen { border-color: #16a34a; background: #f0fdf4; outline: 3px solid #16a34a; transform: scale(0.98); }
   .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
@@ -515,7 +560,7 @@ let mySeatIndex = 0;
 let myPlayerName = localStorage.getItem('ne_player_name') || 'プレイヤー1';
 let hasJoinedRoom = false;
 let lastTurnPlayer = null;
-let cpuTimer = null; // 安全なCPUターンタイマー
+let isCpuThinking = false;
 
 let G = {
   round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], soldWorkplaces: [],
@@ -559,7 +604,6 @@ window.addEventListener('DOMContentLoaded', () => {
 function closeAndDestroyRoom() {
   if (!currentRoomId) return;
   if (!confirm(`部屋「${currentRoomId}」を完全に閉じて解散しますか？\n（全員が最初の画面に戻ります）`)) return;
-  if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
   localStorage.removeItem('ne_current_seat');
   db.ref('rooms/' + currentRoomId).remove().then(() => {
     alert(`部屋「${currentRoomId}」を解散しました。`);
@@ -619,41 +663,27 @@ function joinOrCreateRoom() {
 
         renderAll();
 
-        // 毎回の通信同期時にCPU手番を確実にチェック
         checkAndTriggerCpu();
       }
     }
   });
 }
 
-// 連続するCPUターンを安全かつ確実に実行するトリガー
 function checkAndTriggerCpu() {
-  if (!G || G.phase !== 'action') {
-    if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
-    return;
-  }
+  if (!G || G.phase !== 'action') return;
   const currentP = G.players[G.turnPlayer];
-  if (!currentP || currentP.isHuman) {
-    if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
-    return;
-  }
+  if (!currentP || currentP.isHuman) return;
 
-  // 部屋にいる「先頭の人間プレイヤー」がCPU代行者になる
   const firstHuman = G.players.find(p => p.isHuman);
   const amICpuRunner = (firstHuman && firstHuman.id === mySeatIndex);
-  if (!amICpuRunner) return;
 
-  // 既にタイマー待機中なら多重セットを防ぐ
-  if (cpuTimer) return;
-
-  cpuTimer = setTimeout(() => {
-    cpuTimer = null;
-    if (!G || G.phase !== 'action') return;
-    const pNow = G.players[G.turnPlayer];
-    if (pNow && !pNow.isHuman) {
-      cpuTurnAdvanced(pNow);
-    }
-  }, G.speed || 550);
+  if (amICpuRunner && !isCpuThinking) {
+    isCpuThinking = true;
+    setTimeout(() => {
+      cpuTurnAdvanced(currentP);
+      isCpuThinking = false;
+    }, G.speed);
+  }
 }
 
 function renderLobbySlots(data) {
@@ -768,7 +798,6 @@ function removeSlot(idx) {
   });
 }
 
-// ゲーム開始（完全ランダムスタートプレイヤー）
 function hostStartGame() {
   initAudio();
   if (!currentRoomId) return;
@@ -808,9 +837,7 @@ function hostStartGame() {
     }
 
     const numP = slots.length;
-    // ★完全ランダムで初期スタPを決定（0 〜 numP-1）
     const startP = Math.floor(Math.random() * numP);
-
     const players = slots.map((s, idx) => ({
       id: idx,
       name: s.name || `P${idx+1}`,
@@ -824,7 +851,6 @@ function hostStartGame() {
       debts: 0
     }));
 
-    // スタPから時計回りに $5, $6, $7, $8 配布
     for (let order = 0; order < numP; order++) {
       players[(startP + order) % numP].money = 5 + order;
     }
@@ -851,7 +877,7 @@ function hostStartGame() {
       turnPlayer: startP,
       speed: 600,
       phase: 'action',
-      logHistory: [`[R1] 🎲 スタP抽選: 【${players[startP].name}】がスタートプレイヤーに選ばれました！`],
+      logHistory: [`[R1] 🎮 ゲーム開始！ (${numP}人対戦 / スタートP: ${players[startP].name})`],
       isCleaningUp: false
     };
 
@@ -859,10 +885,6 @@ function hostStartGame() {
       gameStarted: true,
       slots: slots,
       state: state
-    }).then(() => {
-      // 開始時にスタPがCPUだった場合、即座にタイマーを起動
-      G = sanitizeState(state);
-      checkAndTriggerCpu();
     }).catch(err => {
       alert('開始エラー: ' + err.message);
       btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
@@ -872,10 +894,7 @@ function hostStartGame() {
 
 function syncStateToFirebase(newG) {
   G = sanitizeState(newG);
-  db.ref(`rooms/${currentRoomId}/state`).set(G).then(() => {
-    // データ送信直後にも次の手番がCPUなら確実にチェック
-    checkAndTriggerCpu();
-  });
+  db.ref(`rooms/${currentRoomId}/state`).set(G);
 }
 
 // ==========================================
@@ -1150,7 +1169,7 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// CPU思考ルーチン（安定稼働版）
+// CPU思考ルーチン（クラッシュ防止完全版）
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   if (!cpu) return;
@@ -1286,7 +1305,7 @@ function executeCpuActionOnline(cpu, wp) {
     pool.sort((a,b) => b.vp - a.vp);
     const picked = pool.shift();
     cpu.hand.push(picked);
-    pool.forEach(c => { if (!c.isGoods) G.discard.push(c); });
+    pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
     G.logHistory.unshift(`[R${rnd}] 📐 ${cpu.name} が【設計事務所】で【${picked.name}】を獲得。`);
   } else if (wp.id === 'factory' || wp.id === 'auto_plant') {
     const req = (wp.id === 'factory') ? 2 : 3;
@@ -1337,7 +1356,7 @@ function executeCpuActionOnline(cpu, wp) {
 }
 
 // ==========================================
-// 給料・破棄・クリーンアップ（時計回りスタP交代）
+// 給料・破棄・終了
 // ==========================================
 function endActionPhaseOnline(st) {
   st.phase = 'wage';
@@ -1396,16 +1415,11 @@ function endActionPhaseOnline(st) {
     showFinalScoringModal(st);
   } else {
     st.phase = 'action';
-    // ★採石場が使われた場合はそのプレイヤー、使われなかった場合は時計回りで交代
     if (st.nextStartPlayer !== undefined) {
       st.startPlayer = st.nextStartPlayer;
       st.nextStartPlayer = undefined;
-    } else {
-      st.startPlayer = (st.startPlayer + 1) % st.players.length;
     }
     st.turnPlayer = st.startPlayer;
-    st.logHistory.unshift(`[R${st.round}] 🚩 ラウンド開始！スタP: 【${st.players[st.startPlayer].name}】`);
-
     (st.publicWorkplaces || []).forEach(w => w.workers = []);
     (st.soldWorkplaces || []).forEach(w => w.workers = []);
     (st.players || []).forEach(p => {
@@ -1503,7 +1517,6 @@ function renderAll() {
   mBox.innerHTML = '';
   (G.players || []).forEach(p => {
     const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
-    const isStartP = (G.startPlayer === p.id);
     const box = document.createElement('div');
     box.className = `monitor-p-box ${isTurn ? 'turn-now' : ''}`;
     const left = p.workers - p.placedWorkers;
@@ -1524,7 +1537,7 @@ function renderAll() {
 
     box.innerHTML = `
       <div class="monitor-header">
-        <span style="color:${P_COLORS[p.id] || '#aaa'}">${p.name}${isStartP ? ' 🚩' : ''}</span>
+        <span style="color:${P_COLORS[p.id] || '#aaa'}">${p.name}</span>
         <span class="monitor-workers-left">残 ${left}/${p.workers}</span>
       </div>
       <div class="monitor-spots">
@@ -1580,7 +1593,7 @@ function renderAll() {
       const isPassive = (b.sellable === false && b.id !== 'burn');
       const card = document.createElement('div');
       card.className = `card my-facility ${isPassive ? 'passive' : ''}`;
-      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me.placedWorkers < me.workers && canUseWorkplace(me, b));
+      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me && me.placedWorkers < me.workers && canUseWorkplace(me, b));
       card.innerHTML = `
         <div class="card-top"><span class="card-name">${b.name}</span><span class="card-tag">${b.tag}</span></div>
         <div class="card-sub">Cost: ${b.cost} / VP: ${b.vp}</div>
@@ -1622,12 +1635,11 @@ function renderAll() {
   pList.innerHTML = '';
   (G.players || []).forEach(p => {
     const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
-    const isStartP = (G.startPlayer === p.id);
     const box = document.createElement('div');
     box.className = `player-box p${p.id} ${isTurn ? 'active-turn' : ''}`;
     box.innerHTML = `
       <div class="p-top-row">
-        <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}${isStartP ? ' 🚩スタP' : ''}</span>
+        <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}</span>
         <span style="color:#15803d; font-weight:900;">$${p.money}</span>
       </div>
       <div class="p-details">

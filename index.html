@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ナショナルエコノミー Online</title>
+
+<!-- Firebase SDK (Compat版 CDN) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #12100e; --panel-bg: #211a14; --board-bg: #e6dcce; --card-bg: #fcfaf4;
+    --brass: #d4af37; --p0: #2563eb; --p1: #dc2626; --p2: #16a34a; --p3: #9333ea;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg-dark); color: #e5e5e5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ロビー・接続画面 */
+  #lobby-screen {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: #18130e; z-index: 3000; display: flex; flex-direction: column;
+    padding: 20px; overflow-y: auto; gap: 16px;
+  }
+  .lobby-card {
+    background: #241c14; border: 2px solid var(--brass); border-radius: 8px;
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .lobby-title { font-size: 1.2rem; font-weight: 900; color: var(--brass); }
+  .lobby-input {
+    background: #120e0b; border: 1px solid #775c35; color: #fff;
+    padding: 10px; border-radius: 6px; font-size: 0.85rem;
+    font-family: monospace;
+  }
+  .lobby-btn {
+    background: #15803d; color: #fff; border: none; padding: 12px;
+    border-radius: 6px; font-weight: bold; font-size: 0.95rem; cursor: pointer;
+  }
+  .lobby-btn.sec { background: #374151; }
+  .slot-row { display: flex; justify-content: space-between; align-items: center; background: #1a140e; padding: 8px 12px; border-radius: 4px; border: 1px solid #4a3a2a; }
+
+  /* ゲーム画面 */
+  header { background: #18130e; border-bottom: 2px solid var(--brass); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .round-info-group { display: flex; align-items: center; gap: 8px; }
+  .round-badge { font-weight: 900; font-size: 0.95rem; color: #fff; }
+  .phase-pill { font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 12px; background: #2e7d32; color: #fff; }
+  .phase-pill.wage { background: #d97706; }
+  .wage-info { font-size: 0.72rem; color: #f59e0b; font-weight: bold; }
+  .econ-capsule { display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(212,175,55,0.3); }
+  .econ-val { font-size: 0.85rem; font-weight: 900; }
+  .econ-val.household { color: #facc15; }
+  .econ-val.treasury { color: #4ade80; }
+
+  #all-workers-monitor {
+    background: #1c1611; border-bottom: 1px solid #3d2f21; padding: 6px 10px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; flex-shrink: 0;
+  }
+  .monitor-p-box { background: #271f18; border: 1px solid #4a3a2a; border-radius: 4px; padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; }
+  .monitor-p-box.turn-now { border-color: var(--brass); box-shadow: 0 0 6px rgba(212,175,55,0.4); }
+  .monitor-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; font-weight: bold; }
+  .monitor-workers-left { font-size: 0.7rem; color: #facc15; font-weight: 900; }
+  .monitor-spots { display: flex; flex-wrap: wrap; gap: 3px; min-height: 18px; align-items: center; }
+  .monitor-tag { font-size: 0.65rem; padding: 1px 4px; border-radius: 3px; background: #382c21; color: #e5e5e5; border: 1px solid #5a4635; white-space: nowrap; }
+
+  #my-worker-status {
+    background: #251b12; padding: 5px 12px; display: flex; justify-content: space-between;
+    align-items: center; border-bottom: 1px solid #4a3826; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;
+  }
+  .worker-dots { display: flex; gap: 4px; align-items: center; }
+  .w-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5); }
+  .w-dot.active { background: var(--p0); box-shadow: 0 0 5px var(--p0); }
+  .w-dot.used { background: #555; opacity: 0.4; }
+
+  #action-banner {
+    background: #2d2218; color: #fff; padding: 6px 12px; font-size: 0.8rem;
+    border-bottom: 1px solid #4a3826; display: flex; align-items: center; justify-content: space-between; min-height: 36px; flex-shrink: 0;
+  }
+  .banner-text { flex: 1; font-weight: bold; }
+
+  #main-viewport { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 90px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: flex; flex-direction: column; gap: 12px; }
+
+  .section-card { background: var(--board-bg); border-radius: 8px; padding: 12px; border: 2px solid #9c8a73; color: #1f1f1f; }
+  .section-header { font-size: 0.95rem; font-weight: 900; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #b5a389; padding-bottom: 4px; color: #2b1f14; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; }
+  .card { background: var(--card-bg); border: 1px solid #ad9c85; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 130px; position: relative; }
+  .card.workplace { border-top: 4px solid #4a3826; }
+  .card.my-facility { border-top: 4px solid var(--p0); background: #f0f6ff; }
+  .card.public-sold { border-top: 4px solid #b91c1c; background: #fff5ed; }
+  .card.goods { background: #f0fdf4; border: 1px dashed #22c55e; }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .card-name { font-size: 0.85rem; font-weight: 900; color: #111; }
+  .card-tag { font-size: 0.65rem; background: #ded2bf; padding: 1px 4px; border-radius: 3px; color: #333; }
+  .card-sub { font-size: 0.72rem; color: #555; font-weight: bold; }
+  .card-desc { font-size: 0.72rem; color: #222; line-height: 1.25; margin: 4px 0; flex: 1; }
+
+  .worker-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .w-token { width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 0.68rem; font-weight: 900; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(0,0,0,0.4); }
+  .w-token.p0 { background: var(--p0); } .w-token.p1 { background: var(--p1); } .w-token.p2 { background: var(--p2); } .w-token.p3 { background: var(--p3); }
+
+  .btn-work { width: 100%; margin-top: 6px; background: #15803d; color: #fff; border: none; padding: 6px 0; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+  .btn-work:disabled { background: #888; opacity: 0.6; cursor: not-allowed; }
+
+  .player-box { background: #fff; border-radius: 6px; border: 2px solid #ccc; padding: 8px 10px; margin-bottom: 8px; }
+  .player-box.p0 { border-left: 6px solid var(--p0); } .player-box.p1 { border-left: 6px solid var(--p1); } .player-box.p2 { border-left: 6px solid var(--p2); } .player-box.p3 { border-left: 6px solid var(--p3); }
+  .player-box.active-turn { box-shadow: 0 0 10px var(--brass); border-color: var(--brass); }
+  .p-top-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 900; }
+  .p-details { display: flex; gap: 8px; font-size: 0.78rem; font-weight: 700; color: #444; margin: 4px 0; flex-wrap: wrap; }
+  .p-buildings-list { background: #f7f3eb; border-radius: 4px; padding: 6px; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; min-height: 28px; }
+  .p-b-pill { background: #fff; border: 1px solid #c4b5a0; border-radius: 3px; padding: 2px 6px; font-size: 0.72rem; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+  .p-b-pill.occupied { opacity: 0.5; text-decoration: line-through; }
+
+  #log-stream { background: #16120e; border: 1px solid #3d2f21; border-radius: 6px; padding: 10px; height: 480px; overflow-y: auto; font-size: 0.75rem; line-height: 1.4; display: flex; flex-direction: column-reverse; gap: 6px; }
+  .log-line { border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 4px; }
+
+  nav#bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 74px; background: #16120e; border-top: 2px solid var(--brass); display: flex; z-index: 100; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; background: transparent; border: none; font-size: 0.75rem; font-weight: bold; cursor: pointer; position: relative; }
+  .nav-item .icon { font-size: 1.45rem; margin-bottom: 2px; }
+  .nav-item.active { color: var(--brass); background: rgba(212,175,55,0.08); }
+  .nav-item.active::after { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 3px; background: var(--brass); }
+  .badge-counter { position: absolute; top: 6px; right: 20%; background: #dc2626; color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 900; }
+
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 14px; }
+  .modal-box { background: var(--board-bg); border: 3px solid var(--brass); border-radius: 8px; padding: 16px; width: 100%; max-width: 520px; max-height: 85vh; display: flex; flex-direction: column; color: #222; }
+  .modal-title { font-size: 1rem; font-weight: 900; margin-bottom: 8px; color: #111; }
+  .modal-cards { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; }
+  .modal-card { background: #fff; border: 2px solid #aaa; border-radius: 6px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
+  .modal-card.chosen { border-color: #16a34a; background: #f0fdf4; outline: 3px solid #16a34a; transform: scale(0.98); }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+  .m-btn { padding: 8px 16px; border-radius: 4px; font-size: 0.85rem; font-weight: 900; cursor: pointer; border: none; }
+  .m-btn.ok { background: #16a34a; color: #fff; } .m-btn.ok:disabled { background: #999; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<!-- ロビー・同期初期画面 -->
+<div id="lobby-screen">
+  <div class="lobby-card">
+    <div class="lobby-title">🌐 ナショナルエコノミー Online</div>
+    <div style="font-size:0.8rem; color:#aaa;">Firebase Realtime Databaseと同期して遠隔対戦します。</div>
+    
+    <div id="fb-config-box">
+      <div style="font-size:0.75rem; color:#facc15; margin-bottom:4px;">Firebase画面のコードを丸ごと貼り付けてください：</div>
+      <textarea id="fb-config-input" class="lobby-input" rows="6" placeholder="const firebaseConfig = { ... }; のまま貼り付けて大丈夫です"></textarea>
+      <button class="lobby-btn" style="margin-top:6px;" onclick="saveAndConnectFirebase()">Firebase に接続</button>
+    </div>
+
+    <div id="room-controls" style="display:none; flex-direction:column; gap:10px;">
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="room-id-input" class="lobby-input" placeholder="部屋番号 (例: 1234)" style="flex:1;">
+        <button class="lobby-btn" onclick="joinOrCreateRoom()">合流 / 作成</button>
+      </div>
+
+      <div id="room-lobby" style="display:none; flex-direction:column; gap:8px; margin-top:8px;">
+        <div style="font-size:0.85rem; font-weight:bold; color:var(--brass);">参加スロット選択 (部屋: <span id="current-room-text"></span>)</div>
+        <div id="slots-container"></div>
+        <button id="btn-start-online-game" class="lobby-btn" style="display:none; margin-top:6px;" onclick="hostStartGame()">全員揃いました（ゲーム開始）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="round-info-group">
+    <div>
+      <div class="round-badge" id="hud-round">第 1 / 9 ラウンド</div>
+      <div class="wage-info" id="hud-wage">賃金: $2 / 1人</div>
+    </div>
+    <span class="phase-pill" id="hud-phase-pill">🟢 アクション中</span>
+  </div>
+  <div class="econ-capsule">
+    <div style="font-size:0.75rem; color:#aaa;">家計</div>
+    <div class="econ-val household" id="hud-household">$0</div>
+    <div style="font-size:0.75rem; color:#aaa; margin-left:4px;">国庫</div>
+    <div class="econ-val treasury">∞</div>
+  </div>
+</header>
+
+<div id="all-workers-monitor"></div>
+
+<div id="my-worker-status">
+  <span>あなたの労働者: <span id="my-worker-count-text" style="color:#93c5fd;">-</span></span>
+  <div class="worker-dots" id="my-worker-dots"></div>
+</div>
+
+<div id="action-banner">
+  <div class="banner-text" id="banner-text">🎮 ゲーム開始待ち...</div>
+</div>
+
+<div id="main-viewport">
+  <div class="tab-content active" id="tab-public">
+    <div class="section-card" id="my-buildings-section" style="border-color:#2563eb;">
+      <div class="section-header">
+        <span style="color:#2563eb;">🏠 あなたの所有建物（専用職場）</span>
+        <span id="my-bld-count-info" style="font-size:0.75rem; color:#666;">所有: 0軒</span>
+      </div>
+      <div class="card-grid" id="my-buildings-grid"></div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-header">
+        <span>🏛️ 公共職場（誰でも利用可能）</span>
+        <span style="font-size:0.75rem; color:#666;">採石場でスタP奪取</span>
+      </div>
+      <div class="card-grid" id="public-grid"></div>
+    </div>
+
+    <div class="section-card" id="sold-public-section" style="display:none;">
+      <div class="section-header"><span style="color:#b91c1c;">🏢 売却された公共職場</span></div>
+      <div class="card-grid" id="sold-public-grid"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-players">
+    <div class="section-card">
+      <div class="section-header"><span>👥 各プレイヤーの状況</span></div>
+      <div id="players-list"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-hand">
+    <div class="section-card">
+      <div class="section-header">
+        <span id="hand-heading">🎴 あなたの手札</span>
+        <span id="hand-limit-badge" style="font-size:0.75rem; color:#555;">上限: 5枚</span>
+      </div>
+      <div class="card-grid" id="hand-grid"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-log">
+    <div class="section-card">
+      <div class="section-header"><span>📜 対戦活動ログ</span></div>
+      <div id="log-stream"></div>
+    </div>
+  </div>
+</div>
+
+<nav id="bottom-nav">
+  <button class="nav-item active" onclick="switchTab('public', this)"><div class="icon">🏛️</div><div>職場・施設</div></button>
+  <button class="nav-item" onclick="switchTab('players', this)"><div class="icon">👥</div><div>状況・建物</div></button>
+  <button class="nav-item" onclick="switchTab('hand', this)"><div class="icon">🎴</div><div>手札</div><span class="badge-counter" id="nav-hand-badge">0</span></button>
+  <button class="nav-item" onclick="switchTab('log', this)"><div class="icon">📜</div><div>ログ</div></button>
+</nav>
+
+<div id="modal-layer"></div>
+
+<script>
+const CARD_SPECS = [
+  { id: 'farm', name: '農場', cost: 1, vp: 6, count: 8, tag: '農園', desc: '消費財を2枚引く。', sellable: true },
+  { id: 'burn', name: '焼畑', cost: 1, vp: 0, count: 2, tag: '農園', desc: '消費財を5枚引く。R終了時に捨て札へ。', sellable: false },
+  { id: 'cafe', name: '珈琲店', cost: 1, vp: 8, count: 2, tag: '商業', desc: '家計から$5を得る。', sellable: true, moneyGain: 5 },
+  { id: 'office', name: '設計事務所', cost: 1, vp: 8, count: 4, tag: '商業', desc: '山から5枚見て1枚獲得。', sellable: true },
+  { id: 'factory', name: '工場', cost: 2, vp: 12, count: 8, tag: '工場', desc: '手札2枚捨て4枚引く。', sellable: true },
+  { id: 'const_co', name: '建設会社', cost: 2, vp: 10, count: 4, tag: '特殊', desc: '建物建設コスト-1枚。', sellable: true },
+  { id: 'warehouse', name: '倉庫', cost: 2, vp: 10, count: 3, tag: '特殊', desc: '【常時】手札上限+4枚。', sellable: false },
+  { id: 'law_firm', name: '法律事務所', cost: 2, vp: 8, count: 1, tag: '特殊', desc: '【終了時】負債5枚免除。', sellable: false },
+  { id: 'orchard', name: '果樹園', cost: 2, vp: 10, count: 3, tag: '農園', desc: '手札4枚まで消費財引く。', sellable: true },
+  { id: 'dormitory', name: '社宅', cost: 2, vp: 8, count: 2, tag: '住宅', desc: '【常時】労働者上限+1。', sellable: false },
+  { id: 'real_estate', name: '不動産屋', cost: 3, vp: 10, count: 2, tag: '商業', desc: '【終了時】所有建物×+3点。', sellable: false },
+  { id: 'settler', name: '開拓民', cost: 3, vp: 14, count: 2, tag: '特殊', desc: '手札の農場/焼畑/果樹園/大農園を無料建設。', sellable: true },
+  { id: 'restaurant', name: 'レストラン', cost: 3, vp: 16, count: 2, tag: '商業', desc: '手札1枚捨て家計から$15。', sellable: true, moneyGain: 15 },
+  { id: 'plantation', name: '大農園', cost: 3, vp: 12, count: 3, tag: '農園', desc: '消費財を3枚引く。', sellable: true },
+  { id: 'agr_coop', name: '農協', cost: 3, vp: 12, count: 1, tag: '農園', desc: '【終了時】手札の消費財×+3点。', sellable: false },
+  { id: 'general_const', name: 'ゼネコン', cost: 4, vp: 18, count: 3, tag: '特殊', desc: '建物建設後カード2枚引く。', sellable: true },
+  { id: 'steelworks', name: '製鉄所', cost: 4, vp: 20, count: 3, tag: '工場', desc: 'カードを3枚引く。', sellable: true },
+  { id: 'mansion', name: '邸宅', cost: 4, vp: 28, count: 1, tag: 'カギ', desc: '（効果なし高得点）', sellable: false },
+  { id: 'chem_factory', name: '化学工場', cost: 4, vp: 18, count: 2, tag: '工場', desc: '2枚引く（手札0なら4枚）。', sellable: true },
+  { id: 'labor_union', name: '労働組合', cost: 4, vp: 0, count: 1, tag: '特殊', desc: '【終了時】労働者×+6点。', sellable: false },
+  { id: 'auto_plant', name: '自動車工場', cost: 5, vp: 24, count: 3, tag: '工場', desc: '手札3枚捨て7枚引く。', sellable: true },
+  { id: 'headquarters', name: '本社ビル', cost: 5, vp: 20, count: 1, tag: 'カギ', desc: '【終了時】売却不可物件×+6点。', sellable: false },
+  { id: 'niko_const', name: '二胡市建設', cost: 5, vp: 20, count: 2, tag: '特殊', desc: '同コスト建物を2つ、1つ分コストで建設。', sellable: true },
+  { id: 'railway', name: '鉄道', cost: 5, vp: 18, count: 1, tag: '特殊', desc: '【終了時】工場(分類)×+8点。', sellable: false }
+];
+
+const WAGE_MAP = [0, 2, 2, 3, 3, 3, 4, 4, 5, 5];
+const P_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea'];
+
+let db = null;
+let currentRoomId = null;
+let mySeatIndex = null;
+let isHost = false;
+
+let G = {
+  round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], players: [],
+  startPlayer: 0, turnPlayer: 0, speed: 600, phase: 'action', logHistory: [], isCleaningUp: false
+};
+
+// ★柔軟なFirebase設定パーサー（どんな貼り方でもOK）
+function saveAndConnectFirebase() {
+  const raw = document.getElementById('fb-config-input').value.trim();
+  try {
+    let config = null;
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("設定内容の { から } が見つかりません。");
+    
+    try {
+      config = JSON.parse(match[0]);
+    } catch(e) {
+      // JavaScriptオブジェクト形式のまま評価
+      config = (new Function("return " + match[0]))();
+    }
+
+    if (!config || !config.apiKey) {
+      throw new Error("apiKeyが見つかりません。コードをもう一度コピーしてください。");
+    }
+
+    // databaseURLの有無チェック＆自動補完
+    if (!config.databaseURL) {
+      if (config.projectId) {
+        config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
+      }
+    }
+
+    firebase.initializeApp(config);
+    db = firebase.database();
+    localStorage.setItem('ne_fb_config', JSON.stringify(config));
+
+    document.getElementById('fb-config-box').style.display = 'none';
+    document.getElementById('room-controls').style.display = 'flex';
+    alert('Firebase に接続しました！');
+  } catch (e) {
+    alert('読み込みに失敗しました：\n' + e.message);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('ne_fb_config');
+  if (saved) {
+    try {
+      const config = JSON.parse(saved);
+      firebase.initializeApp(config);
+      db = firebase.database();
+      document.getElementById('fb-config-box').style.display = 'none';
+      document.getElementById('room-controls').style.display = 'flex';
+    } catch(e) {}
+  }
+});
+
+function joinOrCreateRoom() {
+  const rId = document.getElementById('room-id-input').value.trim();
+  if (!rId) { alert('部屋番号を入力してください。'); return; }
+  currentRoomId = rId;
+
+  document.getElementById('current-room-text').innerText = rId;
+  document.getElementById('room-lobby').style.display = 'flex';
+
+  const roomRef = db.ref('rooms/' + currentRoomId);
+  roomRef.on('value', (snap) => {
+    const data = snap.val();
+    if (!data) {
+      isHost = true;
+      const initialRoom = {
+        host: 0,
+        gameStarted: false,
+        slots: [
+          { type: 'human', name: 'プレイヤー1', taken: true },
+          { type: 'cpu', name: 'CPU 1', taken: false },
+          { type: 'cpu', name: 'CPU 2', taken: false },
+          { type: 'cpu', name: 'CPU 3', taken: false }
+        ]
+      };
+      mySeatIndex = 0;
+      roomRef.set(initialRoom);
+    } else {
+      renderLobbySlots(data);
+      if (data.gameStarted && data.state) {
+        document.getElementById('lobby-screen').style.display = 'none';
+        G = data.state;
+        renderAll();
+
+        if (isHost && G.phase === 'action' && !G.players[G.turnPlayer].isHuman) {
+          setTimeout(() => cpuTurnOnline(G.players[G.turnPlayer]), G.speed);
+        }
+      }
+    }
+  });
+}
+
+function renderLobbySlots(data) {
+  const container = document.getElementById('slots-container');
+  container.innerHTML = '';
+
+  data.slots.forEach((s, idx) => {
+    const row = document.createElement('div');
+    row.className = 'slot-row';
+    const isMe = (mySeatIndex === idx);
+
+    row.innerHTML = `
+      <div>
+        <strong style="color:${P_COLORS[idx]}">P${idx+1}:</strong> 
+        <span>${s.name}</span>
+        <span style="font-size:0.7rem; color:#aaa;">(${s.type === 'human' ? '人間' : 'CPU'})</span>
+        ${isMe ? '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>' : ''}
+      </div>
+      <div>
+        ${!s.taken && mySeatIndex === null ? `
+          <button class="ctrl-btn" onclick="takeSlot(${idx})">着席</button>
+        ` : ''}
+        ${isHost && idx !== 0 ? `
+          <button class="ctrl-btn" onclick="toggleSlotType(${idx})">${s.type === 'human' ? 'CPU化' : '人間化'}</button>
+        ` : ''}
+      </div>
+    `;
+    container.appendChild(row);
+  });
+
+  if (isHost) {
+    document.getElementById('btn-start-online-game').style.display = 'block';
+  }
+}
+
+function takeSlot(idx) {
+  mySeatIndex = idx;
+  const name = prompt('プレイヤー名を入力:', `プレイヤー${idx+1}`) || `プレイヤー${idx+1}`;
+  db.ref(`rooms/${currentRoomId}/slots/${idx}`).update({
+    type: 'human', name: name, taken: true
+  });
+}
+
+function toggleSlotType(idx) {
+  db.ref(`rooms/${currentRoomId}/slots/${idx}`).once('value', (snap) => {
+    const cur = snap.val();
+    const nextType = cur.type === 'human' ? 'cpu' : 'human';
+    db.ref(`rooms/${currentRoomId}/slots/${idx}`).update({
+      type: nextType,
+      name: nextType === 'cpu' ? `CPU ${idx}` : `待機中`,
+      taken: (nextType === 'cpu')
+    });
+  });
+}
+
+function hostStartGame() {
+  db.ref(`rooms/${currentRoomId}`).once('value', (snap) => {
+    const rData = snap.val();
+    const deck = [];
+    CARD_SPECS.forEach(spec => {
+      for (let i = 0; i < spec.count; i++) deck.push({ ...spec, uid: `${spec.id}_${i}`, isGoods: false });
+    });
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+
+    const startP = Math.floor(Math.random() * 4);
+    const players = rData.slots.map((s, idx) => ({
+      id: idx, name: s.name, isHuman: (s.type === 'human'),
+      money: 0, workers: 2, newWorkers: 0, placedWorkers: 0,
+      buildings: [], hand: [], debts: 0
+    }));
+
+    for (let order = 0; order < 4; order++) {
+      players[(startP + order) % 4].money = 5 + order;
+    }
+    players.forEach(p => {
+      for (let i = 0; i < 3; i++) p.hand.push(deck.pop());
+    });
+
+    const publicWorkplaces = [
+      { id: 'mine', name: '鉱山', desc: 'カードを1枚引く。', capacity: 99, workers: [] },
+      { id: 'carpenter', name: '大工', desc: '建物を1つ建設する。', capacity: 3, workers: [] },
+      { id: 'school', name: '学校', desc: '労働者を1人増やす（今R稼働不可・給料発生）。', capacity: 1, workers: [] },
+      { id: 'quarry', name: '採石場', desc: 'カードを1枚引き、次RのスタPになる。', capacity: 1, workers: [] }
+    ];
+
+    const state = {
+      round: 1, household: 0, deck: deck, discard: [], publicWorkplaces: publicWorkplaces,
+      players: players, startPlayer: startP, turnPlayer: startP, speed: 600, phase: 'action',
+      logHistory: [`[R1] 🎮 ゲーム開始！ スタートP: ${players[startP].name}`], isCleaningUp: false
+    };
+
+    db.ref(`rooms/${currentRoomId}`).update({
+      gameStarted: true,
+      state: state
+    });
+  });
+}
+
+function syncStateToFirebase(newG) {
+  G = newG;
+  db.ref(`rooms/${currentRoomId}/state`).set(G);
+}
+
+function drawCardFromState(st) {
+  if (st.deck.length === 0) {
+    if (st.discard.length === 0) return { id: 'goods', name: '消費財', cost: 0, vp: 0, tag: '消費財', desc: '（建物効果なし）', sellable: false, isGoods: true, uid: 'g_' + Math.random() };
+    st.deck = st.discard;
+    st.discard = [];
+    for (let i = st.deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [st.deck[i], st.deck[j]] = [st.deck[j], st.deck[i]];
+    }
+  }
+  return st.deck.pop();
+}
+
+function createGoods() {
+  return { id: 'goods', name: '消費財', cost: 0, vp: 0, tag: '消費財', desc: '（建物効果なし）', sellable: false, isGoods: true, uid: 'g_' + Math.random() };
+}
+
+function canUseWorkplace(p, wp) {
+  if (wp.sellable === false && wp.id !== 'burn') return false;
+  if (wp.workers && wp.workers.length >= wp.capacity) return false;
+  const req = wp.moneyReq || wp.moneyGain || 0;
+  if (req > 0 && G.household < req) return false;
+
+  const dorms = (p.buildings || []).filter(b => b.id === 'dormitory').length;
+  const totalW = p.workers + p.newWorkers;
+  if ((wp.id === 'school' || wp.id === 'high_school') && totalW >= (4 + dorms)) return false;
+  if ((wp.id === 'university' || wp.id === 'voc_school') && totalW >= (5 + dorms)) return false;
+  if (wp.id === 'orchard') return p.hand.length <= 3;
+  if (wp.id === 'stall') return p.hand.length >= 1;
+  if (wp.id === 'market') return p.hand.length >= 2;
+  if (wp.id === 'supermarket') return p.hand.length >= 3;
+  if (wp.id === 'dept_store') return p.hand.length >= 4;
+  if (wp.id === 'expo') return p.hand.length >= 5;
+  if (wp.id === 'restaurant') return p.hand.length >= 1;
+  if (wp.id === 'factory') return p.hand.length >= 2;
+  if (wp.id === 'auto_plant') return p.hand.length >= 3;
+  if (wp.id === 'carpenter') return p.hand.some(c => !c.isGoods && (p.hand.length - 1 >= c.cost));
+  if (wp.id === 'const_co') return p.hand.some(c => !c.isGoods && (p.hand.length - 1 >= Math.max(0, c.cost - 1)));
+  if (wp.id === 'general_const') return p.hand.some(c => !c.isGoods && (p.hand.length - 1 >= c.cost));
+  if (wp.id === 'settler') return p.hand.some(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
+  if (wp.id === 'niko_const') {
+    const builds = p.hand.filter(c => !c.isGoods);
+    const cg = {}; builds.forEach(c => { cg[c.cost] = (cg[c.cost] || 0) + 1; });
+    return Object.keys(cg).some(cost => cg[cost] >= 2 && p.hand.length >= 2 + parseInt(cost, 10));
+  }
+  return true;
+}
+
+function humanClickWorkplace(wpIdx, isPublic, ownerId = null) {
+  if (G.phase !== 'action') return;
+  if (G.turnPlayer !== mySeatIndex) {
+    alert('あなた以外のプレイヤーの手番です！');
+    return;
+  }
+  const p = G.players[mySeatIndex];
+  if (p.placedWorkers >= p.workers) return;
+
+  const wp = isPublic ? G.publicWorkplaces[wpIdx] : G.players[ownerId].buildings[wpIdx];
+  if (!canUseWorkplace(p, wp)) {
+    alert('この職場は現在利用できません。');
+    return;
+  }
+
+  executeActionOnline(p, wp, () => {
+    if (!wp.workers) wp.workers = [];
+    wp.workers.push(mySeatIndex);
+    p.placedWorkers++;
+
+    advanceTurn(G);
+    syncStateToFirebase(G);
+  });
+}
+
+function advanceTurn(st) {
+  const activeRemaining = st.players.reduce((acc, pl) => acc + (pl.workers - pl.placedWorkers), 0);
+  if (activeRemaining === 0) {
+    endActionPhaseOnline(st);
+    return;
+  }
+  st.turnPlayer = (st.turnPlayer + 1) % 4;
+  const nextP = st.players[st.turnPlayer];
+  if (nextP.placedWorkers >= nextP.workers) {
+    advanceTurn(st);
+  }
+}
+
+function executeActionOnline(p, wp, doneCb) {
+  if (wp.id === 'mine') {
+    p.hand.push(drawCardFromState(G));
+    G.logHistory.unshift(`[R${G.round}] ${p.name} が【鉱山】でドロー`);
+    doneCb();
+  } else if (wp.id === 'quarry') {
+    p.hand.push(drawCardFromState(G));
+    G.nextStartPlayer = p.id;
+    G.logHistory.unshift(`[R${G.round}] 🚩 ${p.name} が【採石場】でスタP奪取`);
+    doneCb();
+  } else if (wp.id === 'school') {
+    p.newWorkers++;
+    G.logHistory.unshift(`[R${G.round}] 🎓 ${p.name} が【学校】で労働者を雇用`);
+    doneCb();
+  } else if (wp.id === 'farm') {
+    p.hand.push(createGoods()); p.hand.push(createGoods());
+    G.logHistory.unshift(`[R${G.round}] ${p.name} が【農場】で消費財2枚獲得`);
+    doneCb();
+  } else if (wp.id === 'cafe') {
+    G.household -= 5; p.money += 5;
+    G.logHistory.unshift(`[R${G.round}] ☕ ${p.name} が【珈琲店】で家計から$5獲得`);
+    doneCb();
+  } else if (wp.id === 'burn') {
+    for (let i = 0; i < 5; i++) p.hand.push(createGoods());
+    wp.pendingDiscard = true;
+    G.logHistory.unshift(`[R${G.round}] 🔥 ${p.name} が【焼畑】で消費財5枚獲得`);
+    doneCb();
+  } else if (['stall', 'market', 'supermarket', 'dept_store', 'expo', 'restaurant'].includes(wp.id)) {
+    const rate = { stall: [1,6], market: [2,12], supermarket: [3,18], dept_store: [4,24], expo: [5,30], restaurant: [1,15] }[wp.id];
+    showCardSelectModal(`売却するカードを ${rate[0]} 枚選択（受取: $${rate[1]}）`, p.hand, rate[0], (chosen) => {
+      chosen.sort((a,b) => b-a).forEach(idx => {
+        const c = p.hand.splice(idx, 1)[0];
+        if (!c.isGoods) G.discard.push(c);
+      });
+      G.household -= rate[1]; p.money += rate[1];
+      G.logHistory.unshift(`[R${G.round}] 💰 ${p.name} が手札売却で家計から$${rate[1]}獲得`);
+      doneCb();
+    });
+  } else if (wp.id === 'carpenter' || wp.id === 'const_co') {
+    const disc = wp.id === 'const_co' ? 1 : 0;
+    const buildables = p.hand.filter(c => !c.isGoods);
+    showCardSelectModal(`建設する建物を選択（割引: -${disc}枚）`, buildables, 1, (bSel) => {
+      const target = buildables[bSel[0]];
+      const cost = Math.max(0, target.cost - disc);
+      const handWithout = p.hand.filter(c => c !== target);
+      if (cost === 0) {
+        p.hand.splice(p.hand.indexOf(target), 1);
+        p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
+        G.logHistory.unshift(`[R${G.round}] 🔨 ${p.name} が【${target.name}】を無料建設`);
+        doneCb();
+      } else {
+        showCardSelectModal(`コストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, (cSel) => {
+          cSel.sort((a,b) => b-a).forEach(idx => {
+            const c = handWithout.splice(idx, 1)[0];
+            p.hand.splice(p.hand.indexOf(c), 1);
+            if (!c.isGoods) G.discard.push(c);
+          });
+          p.hand.splice(p.hand.indexOf(target), 1);
+          p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
+          G.logHistory.unshift(`[R${G.round}] 🔨 ${p.name} が【${target.name}】を建設`);
+          doneCb();
+        });
+      }
+    });
+  } else {
+    doneCb();
+  }
+}
+
+function endActionPhaseOnline(st) {
+  st.phase = 'wage';
+  st.logHistory.unshift(`[R${st.round}] --- 💼 給料支払いフェーズ ---`);
+
+  st.players.forEach(p => {
+    const due = (p.workers + p.newWorkers) * WAGE_MAP[st.round];
+    if (p.money >= due) {
+      p.money -= due;
+      st.household += due;
+      st.logHistory.unshift(`[R${st.round}] 💵 ${p.name} が給料 $${due} 完納`);
+    } else {
+      const paid = p.money;
+      p.money = 0;
+      st.household += paid;
+      const unpaid = due - paid;
+      p.debts += unpaid;
+      st.logHistory.unshift(`[R${st.round}] ⚠️ ${p.name} は資金不足で $${unpaid} の負債`);
+    }
+    p.workers += p.newWorkers;
+    p.newWorkers = 0;
+  });
+
+  st.round++;
+  if (st.round > 9) {
+    st.phase = 'ended';
+    st.logHistory.unshift(`[R9] 🏆 ゲーム終了！`);
+  } else {
+    st.phase = 'action';
+    if (st.nextStartPlayer !== undefined) {
+      st.startPlayer = st.nextStartPlayer;
+      st.nextStartPlayer = undefined;
+    }
+    st.turnPlayer = st.startPlayer;
+    st.publicWorkplaces.forEach(w => w.workers = []);
+    st.players.forEach(p => {
+      p.placedWorkers = 0;
+      p.buildings.forEach(b => b.workers = []);
+    });
+    if (st.round === 2) st.publicWorkplaces.push({ id: 'stall', name: '露店', desc: '手札1枚→$6', capacity: 99, moneyReq: 6, workers: [] });
+    if (st.round === 3) st.publicWorkplaces.push({ id: 'market', name: '市場', desc: '手札2枚→$12', capacity: 99, moneyReq: 12, workers: [] });
+    if (st.round === 5) st.publicWorkplaces.push({ id: 'supermarket', name: 'スーパー', desc: '手札3枚→$18', capacity: 99, moneyReq: 18, workers: [] });
+    if (st.round === 7) st.publicWorkplaces.push({ id: 'dept_store', name: '百貨店', desc: '手札4枚→$24', capacity: 99, moneyReq: 24, workers: [] });
+    if (st.round === 9) st.publicWorkplaces.push({ id: 'expo', name: '万博', desc: '手札5枚→$30', capacity: 99, moneyReq: 30, workers: [] });
+  }
+}
+
+function cpuTurnOnline(p) {
+  const avail = G.publicWorkplaces.filter(w => canUseWorkplace(p, w));
+  const pick = avail.find(w => w.id === 'quarry') || avail.find(w => w.id === 'mine');
+  
+  if (pick) {
+    if (!pick.workers) pick.workers = [];
+    pick.workers.push(p.id);
+    p.placedWorkers++;
+    p.hand.push(drawCardFromState(G));
+    if (pick.id === 'quarry') G.nextStartPlayer = p.id;
+    G.logHistory.unshift(`[R${G.round}] ${p.name} が【${pick.name}】を稼働`);
+  } else {
+    p.placedWorkers++;
+  }
+  advanceTurn(G);
+  syncStateToFirebase(G);
+}
+
+function renderAll() {
+  document.getElementById('hud-round').innerText = `第 ${Math.min(9, G.round)} / 9 ラウンド`;
+  document.getElementById('hud-wage').innerText = `賃金: $${WAGE_MAP[Math.min(9, G.round)]} / 1人`;
+  document.getElementById('hud-household').innerText = `$${G.household}`;
+
+  const mBox = document.getElementById('all-workers-monitor');
+  mBox.innerHTML = '';
+  G.players.forEach(p => {
+    const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
+    const box = document.createElement('div');
+    box.className = `monitor-p-box ${isTurn ? 'turn-now' : ''}`;
+    const left = p.workers - p.placedWorkers;
+
+    const spots = [];
+    G.publicWorkplaces.forEach(w => {
+      const c = (w.workers || []).filter(x => x === p.id).length;
+      for (let i = 0; i < c; i++) spots.push(w.name);
+    });
+    box.innerHTML = `
+      <div class="monitor-header">
+        <span style="color:${P_COLORS[p.id]}">${p.name}</span>
+        <span class="monitor-workers-left">残 ${left}/${p.workers}</span>
+      </div>
+      <div class="monitor-spots">
+        ${spots.length === 0 ? '<span style="font-size:0.65rem; color:#777;">未配置</span>' : spots.map(s => `<span class="monitor-tag">${s}</span>`).join('')}
+      </div>
+    `;
+    mBox.appendChild(box);
+  });
+
+  const me = G.players[mySeatIndex];
+  if (me) {
+    const myLeft = me.workers - me.placedWorkers;
+    document.getElementById('my-worker-count-text').innerText = `あと ${myLeft} / ${me.workers} 人`;
+    const dots = document.getElementById('my-worker-dots');
+    dots.innerHTML = '';
+    for (let i = 0; i < me.workers; i++) {
+      const d = document.createElement('div');
+      d.className = `w-dot ${i < myLeft ? 'active' : 'used'}`;
+      dots.appendChild(d);
+    }
+  }
+
+  const turnPlayerObj = G.players[G.turnPlayer];
+  if (turnPlayerObj) {
+    const isMyTurn = (G.turnPlayer === mySeatIndex);
+    document.getElementById('banner-text').innerHTML = isMyTurn ? 
+      `<span style="color:#60a5fa;">🔵 あなたの手番です！</span>` : 
+      `${turnPlayerObj.name} の手番中...`;
+  }
+
+  const pubGrid = document.getElementById('public-grid');
+  pubGrid.innerHTML = '';
+  G.publicWorkplaces.forEach((w, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card workplace';
+    const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me && me.placedWorkers < me.workers && canUseWorkplace(me, w));
+    card.innerHTML = `
+      <div class="card-top"><span class="card-name">${w.name}</span><span class="card-tag">定員${w.capacity >= 90 ? '無制限' : w.capacity}</span></div>
+      <div class="card-desc">${w.desc}</div>
+      <div class="worker-row">
+        ${(w.workers || []).map(pId => `<div class="w-token p${pId}">P${pId+1}</div>`).join('')}
+      </div>
+      ${canUse ? `<button class="btn-work" onclick="humanClickWorkplace(${idx}, true)">労働を配置</button>` : ''}
+    `;
+    pubGrid.appendChild(card);
+  });
+
+  const myBldGrid = document.getElementById('my-buildings-grid');
+  myBldGrid.innerHTML = '';
+  if (me && me.buildings) {
+    document.getElementById('my-bld-count-info').innerText = `所有: ${me.buildings.length}軒`;
+    me.buildings.forEach((b, bIdx) => {
+      const card = document.createElement('div');
+      card.className = 'card my-facility';
+      const canUse = (G.phase === 'action' && G.turnPlayer === mySeatIndex && me.placedWorkers < me.workers && canUseWorkplace(me, b));
+      card.innerHTML = `
+        <div class="card-top"><span class="card-name">${b.name}</span><span class="card-tag">${b.tag}</span></div>
+        <div class="card-sub">Cost: ${b.cost} / VP: ${b.vp}</div>
+        <div class="card-desc">${b.desc}</div>
+        ${canUse ? `<button class="btn-work" onclick="humanClickWorkplace(${bIdx}, false, ${me.id})">配置</button>` : ''}
+      `;
+      myBldGrid.appendChild(card);
+    });
+  }
+
+  const hGrid = document.getElementById('hand-grid');
+  hGrid.innerHTML = '';
+  if (me && me.hand) {
+    document.getElementById('nav-hand-badge').innerText = me.hand.length;
+    document.getElementById('hand-heading').innerText = `🎴 あなたの手札 (${me.hand.length}枚)`;
+    me.hand.forEach(c => {
+      const card = document.createElement('div');
+      card.className = `card ${c.isGoods ? 'goods' : ''}`;
+      card.innerHTML = `
+        <div class="card-top"><span class="card-name">${c.name}</span><span class="card-tag">${c.tag}</span></div>
+        <div class="card-sub">${c.isGoods ? '消費財' : `Cost: ${c.cost} / VP: ${c.vp}`}</div>
+        <div class="card-desc">${c.desc}</div>
+      `;
+      hGrid.appendChild(card);
+    });
+  }
+
+  const logBox = document.getElementById('log-stream');
+  logBox.innerHTML = G.logHistory.map(l => `<div class="log-line">${l}</div>`).join('');
+}
+
+function showCardSelectModal(title, cards, requiredCount, onConfirm) {
+  const modalLayer = document.getElementById('modal-layer');
+  const selected = new Set();
+
+  function renderModal() {
+    modalLayer.innerHTML = `
+      <div class="modal-overlay">
+        <div class="modal-box">
+          <div class="modal-title">${title} (${selected.size} / ${requiredCount} 選択)</div>
+          <div class="modal-cards">
+            ${cards.map((c, i) => `
+              <div class="modal-card ${selected.has(i) ? 'chosen' : ''}" onclick="toggleMCard(${i})">
+                <strong style="font-size:0.85rem;">${c.name}</strong>
+                <div style="font-size:0.75rem; color:#666;">${c.isGoods ? '消費財' : `Cost:${c.cost} VP:${c.vp}`}</div>
+                <div style="font-size:0.7rem; color:#333;">${c.desc}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="modal-btns">
+            <button class="m-btn ok" id="modal-ok-btn" ${selected.size === requiredCount ? '' : 'disabled'}>確定</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modal-ok-btn').onclick = () => {
+      modalLayer.innerHTML = '';
+      onConfirm(Array.from(selected));
+    };
+  }
+
+  window.toggleMCard = (idx) => {
+    if (selected.has(idx)) selected.delete(idx);
+    else if (selected.size < requiredCount) selected.add(idx);
+    renderModal();
+  };
+  renderModal();
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

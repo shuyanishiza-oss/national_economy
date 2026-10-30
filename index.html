@@ -355,6 +355,14 @@
 <div id="modal-layer"></div>
 
 <script>
+window.onerror = function(msg, url, line) {
+  const eb = document.getElementById('error-screen-banner');
+  if (eb) {
+    eb.style.display = 'block';
+    eb.innerText = `エラー発生: ${msg} (行:${line})`;
+  }
+};
+
 // ==========================================
 // Web Audio API による効果音
 // ==========================================
@@ -507,13 +515,36 @@ let mySeatIndex = 0;
 let myPlayerName = localStorage.getItem('ne_player_name') || 'プレイヤー1';
 let hasJoinedRoom = false;
 let lastTurnPlayer = null;
+let isCpuThinking = false; // CPUの多重思考ガード
 
 let G = {
   round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], soldWorkplaces: [],
   players: [], startPlayer: 0, turnPlayer: 0, speed: 600, phase: 'action', logHistory: [], isCleaningUp: false
 };
 
-// リロード時に前回入力した部屋番号を自動補完
+// ==========================================
+// Firebaseの空配列消失を防ぐサニタイズ関数
+// ==========================================
+function sanitizeState(st) {
+  if (!st) return st;
+  st.deck = st.deck || [];
+  st.discard = st.discard || [];
+  st.publicWorkplaces = st.publicWorkplaces || [];
+  st.soldWorkplaces = st.soldWorkplaces || [];
+  st.logHistory = st.logHistory || [];
+  st.players = st.players || [];
+
+  st.publicWorkplaces.forEach(w => { w.workers = w.workers || []; });
+  st.soldWorkplaces.forEach(w => { w.workers = w.workers || []; });
+
+  st.players.forEach(p => {
+    p.hand = p.hand || [];
+    p.buildings = p.buildings || [];
+    p.buildings.forEach(b => { b.workers = b.workers || []; });
+  });
+  return st;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const savedRoom = localStorage.getItem('ne_room_id');
   if (savedRoom) {
@@ -569,7 +600,6 @@ function joinOrCreateRoom() {
       roomRef.set(initialRoom);
     } else {
       hasJoinedRoom = true;
-      // ★リロード時：保存されている席番号があれば自動復帰
       const savedSeat = localStorage.getItem('ne_current_seat');
       if (savedSeat !== null && data.slots && data.slots[parseInt(savedSeat, 10)]) {
         mySeatIndex = parseInt(savedSeat, 10);
@@ -579,7 +609,7 @@ function joinOrCreateRoom() {
 
       if (data.gameStarted && data.state) {
         document.getElementById('lobby-screen').style.display = 'none';
-        G = data.state;
+        G = sanitizeState(data.state);
 
         if (G.phase === 'action' && G.turnPlayer === mySeatIndex && lastTurnPlayer !== mySeatIndex) {
           showMyTurnToast();
@@ -588,12 +618,29 @@ function joinOrCreateRoom() {
 
         renderAll();
 
-        if (mySeatIndex === 0 && G.phase === 'action' && !G.players[G.turnPlayer].isHuman) {
-          setTimeout(() => cpuTurnAdvanced(G.players[G.turnPlayer]), G.speed);
-        }
+        // 部屋にいる最初の人間プレイヤーがCPU手番を代行実行（P1固定を完全撤廃）
+        checkAndTriggerCpu();
       }
     }
   });
+}
+
+function checkAndTriggerCpu() {
+  if (!G || G.phase !== 'action') return;
+  const currentP = G.players[G.turnPlayer];
+  if (!currentP || currentP.isHuman) return;
+
+  // 部屋にいる「最初の人間プレイヤー」がCPU代行者になる
+  const firstHuman = G.players.find(p => p.isHuman);
+  const amICpuRunner = (firstHuman && firstHuman.id === mySeatIndex);
+
+  if (amICpuRunner && !isCpuThinking) {
+    isCpuThinking = true;
+    setTimeout(() => {
+      cpuTurnAdvanced(currentP);
+      isCpuThinking = false;
+    }, G.speed);
+  }
 }
 
 function renderLobbySlots(data) {
@@ -639,7 +686,6 @@ function renderLobbySlots(data) {
   });
 }
 
-// 席移動処理（以前の席は100%自動でCPU化 & localStorageに席を記憶）
 function takeSlot(targetIdx) {
   initAudio();
   db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
@@ -709,7 +755,6 @@ function removeSlot(idx) {
   });
 }
 
-// ゲーム開始（自動着席＆席の完全保存）
 function hostStartGame() {
   initAudio();
   if (!currentRoomId) return;
@@ -805,7 +850,7 @@ function hostStartGame() {
 }
 
 function syncStateToFirebase(newG) {
-  G = newG;
+  G = sanitizeState(newG);
   db.ref(`rooms/${currentRoomId}/state`).set(G);
 }
 
@@ -813,6 +858,8 @@ function syncStateToFirebase(newG) {
 // ゲームエンジン補助
 // ==========================================
 function drawCardFromState(st) {
+  st.deck = st.deck || [];
+  st.discard = st.discard || [];
   if (st.deck.length === 0) {
     if (st.discard.length === 0) return createGoods();
     st.deck = st.discard;
@@ -835,34 +882,36 @@ function getHandLimit(p) {
 }
 
 function canUseWorkplace(p, wp) {
-  if (!p) return false;
+  if (!p || !wp) return false;
   if (wp.sellable === false && wp.id !== 'burn') return false;
-  if (wp.workers && wp.workers.length >= wp.capacity) return false;
+  const workers = wp.workers || [];
+  if (workers.length >= wp.capacity) return false;
   const req = wp.moneyReq || wp.moneyGain || 0;
   if (req > 0 && G.household < req) return false;
 
   const dorms = (p.buildings || []).filter(b => b.id === 'dormitory').length;
   const totalW = p.workers + p.newWorkers;
   if ((wp.id === 'school') && totalW >= (4 + dorms)) return false;
-  if (wp.id === 'orchard') return (p.hand || []).length <= 3;
-  if (['stall', 'restaurant'].includes(wp.id)) return (p.hand || []).length >= 1;
-  if (['market', 'factory'].includes(wp.id)) return (p.hand || []).length >= 2;
-  if (['supermarket', 'auto_plant'].includes(wp.id)) return (p.hand || []).length >= 3;
-  if (wp.id === 'dept_store') return (p.hand || []).length >= 4;
-  if (wp.id === 'expo') return (p.hand || []).length >= 5;
+  const hand = p.hand || [];
+  if (wp.id === 'orchard') return hand.length <= 3;
+  if (['stall', 'restaurant'].includes(wp.id)) return hand.length >= 1;
+  if (['market', 'factory'].includes(wp.id)) return hand.length >= 2;
+  if (['supermarket', 'auto_plant'].includes(wp.id)) return hand.length >= 3;
+  if (wp.id === 'dept_store') return hand.length >= 4;
+  if (wp.id === 'expo') return hand.length >= 5;
   if (wp.id === 'carpenter' || wp.id === 'general_const') {
-    return (p.hand || []).some(c => !c.isGoods && (p.hand.length - 1 >= c.cost));
+    return hand.some(c => !c.isGoods && (hand.length - 1 >= c.cost));
   }
   if (wp.id === 'const_co') {
-    return (p.hand || []).some(c => !c.isGoods && (p.hand.length - 1 >= Math.max(0, c.cost - 1)));
+    return hand.some(c => !c.isGoods && (hand.length - 1 >= Math.max(0, c.cost - 1)));
   }
   if (wp.id === 'settler') {
-    return (p.hand || []).some(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
+    return hand.some(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
   }
   if (wp.id === 'niko_const') {
-    const builds = (p.hand || []).filter(c => !c.isGoods);
+    const builds = hand.filter(c => !c.isGoods);
     const cg = {}; builds.forEach(c => { cg[c.cost] = (cg[c.cost] || 0) + 1; });
-    return Object.keys(cg).some(cost => cg[cost] >= 2 && p.hand.length >= 2 + parseInt(cost, 10));
+    return Object.keys(cg).some(cost => cg[cost] >= 2 && hand.length >= 2 + parseInt(cost, 10));
   }
   return true;
 }
@@ -1077,21 +1126,26 @@ function executeActionOnline(p, wp, doneCb) {
 }
 
 // ==========================================
-// CPU思考ルーチン
+// CPU思考ルーチン（クラッシュ防止完全版）
 // ==========================================
 function cpuTurnAdvanced(cpu) {
+  if (!cpu) return;
   const rnd = G.round;
   const wagePerWorker = WAGE_MAP[rnd];
   const upcomingWage = (cpu.workers + cpu.newWorkers) * wagePerWorker;
   const deficit = upcomingWage - cpu.money;
 
+  cpu.buildings = cpu.buildings || [];
+  cpu.hand = cpu.hand || [];
+
   const candidates = [];
-  G.publicWorkplaces.forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'public', idx: idx }); });
-  cpu.buildings.forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'my', idx: idx }); });
-  G.soldWorkplaces.forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'sold', idx: idx }); });
+  (G.publicWorkplaces || []).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'public', idx: idx }); });
+  (cpu.buildings || []).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'my', idx: idx }); });
+  (G.soldWorkplaces || []).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'sold', idx: idx }); });
 
   if (candidates.length === 0) {
     cpu.placedWorkers++;
+    G.logHistory.unshift(`[R${rnd}] ⚠️ ${cpu.name} は配置可能な職場がなくパスしました。`);
     advanceTurn(G);
     syncStateToFirebase(G);
     return;
@@ -1216,7 +1270,7 @@ function executeCpuActionOnline(cpu, wp) {
     cpu.hand.sort((a,b) => a.vp - b.vp);
     for (let i = 0; i < req; i++) {
       const c = cpu.hand.shift();
-      if (!c.isGoods) G.discard.push(c);
+      if (c && !c.isGoods) G.discard.push(c);
     }
     for (let i = 0; i < gain; i++) cpu.hand.push(drawCardFromState(G));
     G.logHistory.unshift(`[R${rnd}] ⚙️ ${cpu.name} が【${wp.name}】で${gain}枚ドロー。`);
@@ -1225,7 +1279,7 @@ function executeCpuActionOnline(cpu, wp) {
     cpu.hand.sort((a,b) => a.vp - b.vp);
     for (let i = 0; i < rate[0]; i++) {
       const c = cpu.hand.shift();
-      if (!c.isGoods) G.discard.push(c);
+      if (c && !c.isGoods) G.discard.push(c);
     }
     G.household -= rate[1]; cpu.money += rate[1];
     G.logHistory.unshift(`[R${rnd}] 💰 ${cpu.name} が【${wp.name}】で手札を売却し家計から$${rate[1]}獲得。`);
@@ -1240,7 +1294,7 @@ function executeCpuActionOnline(cpu, wp) {
       cpu.hand.sort((a,b) => a.vp - b.vp);
       for (let i = 0; i < cost; i++) {
         const c = cpu.hand.shift();
-        if (!c.isGoods) G.discard.push(c);
+        if (c && !c.isGoods) G.discard.push(c);
       }
       cpu.buildings.push({ ...target, ownerId: cpu.id, capacity: 1, workers: [] });
       if (wp.id === 'general_const') { cpu.hand.push(drawCardFromState(G)); cpu.hand.push(drawCardFromState(G)); }
@@ -1269,6 +1323,7 @@ function endActionPhaseOnline(st) {
     const totalWorkers = p.workers + p.newWorkers;
     const due = totalWorkers * WAGE_MAP[st.round];
 
+    p.buildings = p.buildings || [];
     if (p.money < due) {
       const sellables = p.buildings.filter(b => b.sellable !== false);
       sellables.sort((a,b) => a.vp - b.vp);
@@ -1298,16 +1353,17 @@ function endActionPhaseOnline(st) {
     p.newWorkers = 0;
 
     const limit = getHandLimit(p);
+    p.hand = p.hand || [];
     while (p.hand.length > limit) {
       p.hand.sort((a,b) => a.vp - b.vp);
       const discarded = p.hand.shift();
-      if (!discarded.isGoods) st.discard.push(discarded);
+      if (discarded && !discarded.isGoods) st.discard.push(discarded);
     }
   });
 
-  st.publicWorkplaces = st.publicWorkplaces.filter(w => w.id !== 'burn');
-  st.soldWorkplaces = st.soldWorkplaces.filter(w => w.id !== 'burn');
-  st.players.forEach(p => { p.buildings = p.buildings.filter(b => b.id !== 'burn'); });
+  st.publicWorkplaces = (st.publicWorkplaces || []).filter(w => w.id !== 'burn');
+  st.soldWorkplaces = (st.soldWorkplaces || []).filter(w => w.id !== 'burn');
+  st.players.forEach(p => { p.buildings = (p.buildings || []).filter(b => b.id !== 'burn'); });
 
   st.round++;
   if (st.round > 9) {
@@ -1321,11 +1377,11 @@ function endActionPhaseOnline(st) {
       st.nextStartPlayer = undefined;
     }
     st.turnPlayer = st.startPlayer;
-    st.publicWorkplaces.forEach(w => w.workers = []);
-    st.soldWorkplaces.forEach(w => w.workers = []);
-    st.players.forEach(p => {
+    (st.publicWorkplaces || []).forEach(w => w.workers = []);
+    (st.soldWorkplaces || []).forEach(w => w.workers = []);
+    (st.players || []).forEach(p => {
       p.placedWorkers = 0;
-      p.buildings.forEach(b => b.workers = []);
+      (p.buildings || []).forEach(b => b.workers = []);
     });
 
     if (st.round === 2) st.publicWorkplaces.push({ id: 'stall', name: '露店', desc: '手札1枚→$6', capacity: 99, moneyReq: 6, workers: [] });
@@ -1343,28 +1399,28 @@ function calculateScores(st) {
   return st.players.map(p => {
     const cashVP = p.money;
     let bldVP = 0;
-    p.buildings.forEach(b => bldVP += b.vp);
+    (p.buildings || []).forEach(b => bldVP += b.vp);
 
     let bonusVP = 0;
-    const realEstates = p.buildings.filter(b => b.id === 'real_estate').length;
-    bonusVP += realEstates * (p.buildings.length * 3);
+    const realEstates = (p.buildings || []).filter(b => b.id === 'real_estate').length;
+    bonusVP += realEstates * ((p.buildings || []).length * 3);
 
-    const agrCoops = p.buildings.filter(b => b.id === 'agr_coop').length;
-    const goodsCount = p.hand.filter(c => c.isGoods).length;
+    const agrCoops = (p.buildings || []).filter(b => b.id === 'agr_coop').length;
+    const goodsCount = (p.hand || []).filter(c => c.isGoods).length;
     bonusVP += agrCoops * (goodsCount * 3);
 
-    const laborUnions = p.buildings.filter(b => b.id === 'labor_union').length;
+    const laborUnions = (p.buildings || []).filter(b => b.id === 'labor_union').length;
     bonusVP += laborUnions * (p.workers * 6);
 
-    const hqs = p.buildings.filter(b => b.id === 'headquarters').length;
-    const unsellables = p.buildings.filter(b => b.sellable === false).length;
+    const hqs = (p.buildings || []).filter(b => b.id === 'headquarters').length;
+    const unsellables = (p.buildings || []).filter(b => b.sellable === false).length;
     bonusVP += hqs * (unsellables * 6);
 
-    const railways = p.buildings.filter(b => b.id === 'railway').length;
-    const factories = p.buildings.filter(b => b.tag === '工場').length;
+    const railways = (p.buildings || []).filter(b => b.id === 'railway').length;
+    const factories = (p.buildings || []).filter(b => b.tag === '工場').length;
     bonusVP += railways * (factories * 8);
 
-    const lawFirms = p.buildings.filter(b => b.id === 'law_firm').length;
+    const lawFirms = (p.buildings || []).filter(b => b.id === 'law_firm').length;
     const effectiveDebts = Math.max(0, p.debts - lawFirms * 5);
     const debtPenalty = effectiveDebts * 10;
 

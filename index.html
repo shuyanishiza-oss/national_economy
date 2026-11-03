@@ -6,27 +6,24 @@
 <title>ナショナルエコノミー</title>
 
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js" crossorigin="anonymous"></script>
 
 <style>
   :root {
-    --bg-dark: #12100e; --panel-bg: #211a14; --board-bg: #e6dcce; --card-bg: #fcfaf4;
-    --brass: #d4af37; --p0: #2563eb; --p1: #dc2626; --p2: #16a34a; --p3: #9333ea;
+    --bg-dark: #12100e; --panel-bg: #211a14; --board-bg: #e6dcce; --card-bg: #fdfbf7;
+    --brass: #d4af37; --brass-dark: #8c6d23; --p0: #2563eb; --p1: #dc2626; --p2: #16a34a; --p3: #9333ea;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   
   html, body {
-    height: 100%;
-    height: 100dvh;
-    overflow: hidden;
-    background: var(--bg-dark);
-    color: #e5e5e5;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+    height: 100%; height: 100dvh; overflow: hidden; background: var(--bg-dark); color: #e5e5e5;
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Georgia", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, serif;
   }
   body { display: flex; flex-direction: column; }
 
-  /* 診断用デバッグエラーパネル */
+  #fx-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 8000; }
+
   #debug-error-panel {
     display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(15, 5, 5, 0.96); z-index: 99999; padding: 16px;
@@ -40,134 +37,162 @@
   .dbg-copy { background: #2563eb; color: #fff; }
   .dbg-close { background: #4b5563; color: #fff; }
 
-  /* ロビー画面 */
   #lobby-screen {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: #18130e; z-index: 3000; display: flex; flex-direction: column;
-    padding: 16px; overflow-y: auto; gap: 14px; -webkit-overflow-scrolling: touch;
+    background: radial-gradient(circle at center, #241c14 0%, #120e0b 100%);
+    z-index: 3000; display: flex; flex-direction: column; padding: 16px;
+    overflow-y: auto; gap: 14px; -webkit-overflow-scrolling: touch;
   }
   .lobby-card {
-    background: #241c14; border: 2px solid var(--brass); border-radius: 8px;
+    background: #201710; border: 2px solid var(--brass); border-radius: 8px;
     padding: 16px; display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 15px rgba(212,175,55,0.15);
   }
-  .lobby-title { font-size: 1.2rem; font-weight: 900; color: var(--brass); text-align: center; }
+  .lobby-title { font-size: 1.35rem; font-weight: 900; color: var(--brass); text-align: center; letter-spacing: 2px; }
   .lobby-input {
-    background: #120e0b; border: 1px solid #775c35; color: #fff;
+    background: #100b08; border: 1px solid #775c35; color: #fff;
     padding: 10px; border-radius: 6px; font-size: 0.95rem; text-align: center;
   }
   .lobby-btn {
-    background: #15803d; color: #fff; border: none; padding: 10px 14px;
-    border-radius: 6px; font-weight: bold; font-size: 0.9rem; cursor: pointer; text-align: center;
+    background: #15803d; color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 9px 12px;
+    border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: center;
   }
   .lobby-btn.start-btn {
-    background: #eab308; color: #000; font-size: 1.05rem; font-weight: 900;
-    box-shadow: 0 0 12px rgba(234, 179, 8, 0.4); margin-top: 6px; padding: 12px;
+    background: linear-gradient(180deg, #facc15 0%, #ca8a04 100%); color: #1a0f00; font-size: 1.1rem;
+    font-weight: 900; box-shadow: 0 0 15px rgba(234, 179, 8, 0.4); margin-top: 6px; padding: 12px; border: none;
   }
-  .lobby-btn.start-btn:disabled { background: #78716c; color: #d6d3d1; cursor: not-allowed; box-shadow: none; }
-  .lobby-btn.danger { background: #b91c1c; }
+  .lobby-btn.start-btn:disabled { background: #57534e; color: #a8a29e; cursor: not-allowed; box-shadow: none; }
+  .lobby-btn.danger { background: #991b1b; }
   .lobby-btn.sec { background: #374151; }
-  .lobby-btn.add-btn { background: #2563eb; width: 100%; margin-top: 4px; }
+  .lobby-btn.add-btn { background: #1d4ed8; width: 100%; margin-top: 4px; }
+  .btn-cpu-takeover { background: #d97706; color: #fff; border: none; padding: 2px 6px; font-size: 0.65rem; font-weight: 900; border-radius: 4px; cursor: pointer; }
   
   .slot-row {
-    display: flex; justify-content: space-between; align-items: center; background: #1a140e;
+    display: flex; justify-content: space-between; align-items: center; background: #18120c;
     padding: 8px 12px; border-radius: 6px; border: 1px solid #4a3a2a; gap: 6px;
   }
   .slot-row.my-slot { border-color: var(--brass); background: #2a2015; box-shadow: 0 0 8px rgba(212, 175, 55, 0.25); }
 
-  /* ゲーム画面ヘッダー */
-  header { background: #18130e; border-bottom: 2px solid var(--brass); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  header {
+    background: #18120c; border-bottom: 2px solid var(--brass);
+    padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  }
   .round-info-group { display: flex; align-items: center; gap: 8px; }
-  .round-badge { font-weight: 900; font-size: 0.95rem; color: #fff; }
-  .phase-pill { font-size: 0.7rem; font-weight: bold; padding: 2px 6px; border-radius: 12px; background: #2e7d32; color: #fff; }
+  .round-badge { font-weight: 900; font-size: 0.95rem; color: #fff; letter-spacing: 0.5px; }
+  .phase-pill { font-size: 0.7rem; font-weight: bold; padding: 2px 7px; border-radius: 12px; background: #2e7d32; color: #fff; }
   .phase-pill.wage { background: #d97706; }
   .phase-pill.discard { background: #2563eb; }
   .wage-info { font-size: 0.72rem; color: #f59e0b; font-weight: bold; }
-  .econ-capsule { display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(212,175,55,0.3); }
-  .econ-val { font-size: 0.85rem; font-weight: 900; }
+  .econ-capsule {
+    display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,0.55);
+    padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(212,175,55,0.4);
+  }
+  .econ-val { font-size: 0.9rem; font-weight: 900; }
   .econ-val.household { color: #facc15; }
   .econ-val.treasury { color: #4ade80; }
   .header-actions { display: flex; align-items: center; gap: 6px; }
-  .btn-audio { background: #374151; border: 1px solid #4b5563; color: #fff; font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+  .btn-audio { background: #292524; border: 1px solid #57534e; color: #fff; font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
   .btn-close-room { background: #7f1d1d; border: 1px solid #b91c1c; color: #fff; font-size: 0.65rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
 
   #all-workers-monitor {
-    background: #1c1611; border-bottom: 1px solid #3d2f21; padding: 6px 10px;
+    background: #1c150e; border-bottom: 1px solid #3d2f21; padding: 6px 10px;
     display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; flex-shrink: 0;
   }
-  .monitor-p-box { background: #271f18; border: 1px solid #4a3a2a; border-radius: 4px; padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; }
-  .monitor-p-box.turn-now { border-color: var(--brass); box-shadow: 0 0 6px rgba(212,175,55,0.4); }
+  .monitor-p-box {
+    background: #251c14; border: 1px solid #4a3a2a; border-radius: 4px;
+    padding: 5px 7px; display: flex; flex-direction: column; gap: 3px; position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .monitor-p-box.turn-now { border-color: var(--brass); box-shadow: 0 0 8px rgba(212,175,55,0.5); }
   .monitor-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; font-weight: bold; }
-  .monitor-workers-left { font-size: 0.7rem; color: #facc15; font-weight: 900; }
-  .monitor-spots { display: flex; flex-wrap: wrap; gap: 3px; min-height: 18px; align-items: center; }
-  .monitor-tag { font-size: 0.65rem; padding: 1px 4px; border-radius: 3px; background: #382c21; color: #e5e5e5; border: 1px solid #5a4635; white-space: nowrap; }
+  .monitor-name-group { display: flex; align-items: center; gap: 4px; overflow: hidden; flex-wrap: wrap; }
+  .monitor-workers-left { font-size: 0.72rem; color: #facc15; font-weight: 900; flex-shrink: 0; }
+  .monitor-spots { display: flex; flex-wrap: wrap; gap: 3px; min-height: 20px; align-items: center; }
+  .monitor-tag { font-size: 0.65rem; padding: 1px 5px; border-radius: 3px; background: #38291c; color: #e5e5e5; border: 1px solid #5a432f; white-space: nowrap; }
+
+  .badge-start-player {
+    background: linear-gradient(135deg, #eab308, #ca8a04);
+    color: #000; font-size: 0.62rem; font-weight: 900; padding: 1px 5px;
+    border-radius: 3px; display: inline-flex; align-items: center; gap: 2px;
+  }
+  .badge-next-start {
+    background: #2563eb; color: #fff; font-size: 0.6rem; font-weight: 900; padding: 1px 4px; border-radius: 3px;
+  }
 
   #my-worker-status {
-    background: #251b12; padding: 5px 12px; display: flex; justify-content: space-between;
+    background: #241a12; padding: 5px 12px; display: flex; justify-content: space-between;
     align-items: center; border-bottom: 1px solid #4a3826; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;
   }
-  .worker-dots { display: flex; gap: 4px; align-items: center; }
-  .w-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5); }
-  .w-dot.active { background: var(--p0); box-shadow: 0 0 5px var(--p0); }
-  .w-dot.used { background: #555; opacity: 0.4; }
+  .worker-dots { display: flex; gap: 6px; align-items: center; }
+  .meeple-icon { width: 18px; height: 18px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)); }
+  .meeple-icon.used { opacity: 0.25; filter: grayscale(1); }
+  .meeple-icon.active { transform: scale(1.15); }
 
   #action-banner {
-    background: #2d2218; color: #fff; padding: 6px 12px; font-size: 0.8rem;
+    background: #2b1e14; color: #fff; padding: 6px 12px; font-size: 0.8rem;
     border-bottom: 1px solid #4a3826; display: flex; align-items: center; justify-content: space-between; min-height: 36px; flex-shrink: 0;
   }
-  .banner-text { flex: 1; font-weight: bold; }
+  .banner-text { flex: 1; font-weight: bold; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
 
   #main-viewport {
     flex: 1 1 0%; min-height: 0; overflow-y: auto; overflow-x: hidden;
-    -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 12px; padding-bottom: 140px;
+    -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 12px; padding-bottom: 150px;
     display: flex; flex-direction: column; gap: 12px;
   }
   .tab-content { display: none; }
   .tab-content.active { display: flex; flex-direction: column; gap: 12px; }
 
-  .section-card { background: var(--board-bg); border-radius: 8px; padding: 12px; border: 2px solid #9c8a73; color: #1f1f1f; }
-  .section-header { font-size: 0.95rem; font-weight: 900; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #b5a389; padding-bottom: 4px; color: #2b1f14; }
+  .section-card {
+    background: var(--board-bg); border-radius: 8px; padding: 12px;
+    border: 2px solid #9c8a73; color: #1f1f1f; box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  }
+  .section-header {
+    font-size: 0.95rem; font-weight: 900; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 2px dashed #b5a389; padding-bottom: 4px; color: #2b1f14;
+  }
 
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; }
   
   .card {
-    background: var(--card-bg); border: 1px solid #ad9c85; border-radius: 6px; padding: 8px;
-    display: flex; flex-direction: column; justify-content: space-between; min-height: 130px; position: relative;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    background: linear-gradient(180deg, #fffdf8 0%, #f6f0e4 100%);
+    border: 1px solid #a8947e; border-radius: 6px; padding: 8px;
+    display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; position: relative;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.18);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.25s ease;
   }
   .card.workplace { border-top: 4px solid #4a3826; }
-  .card.my-facility { border-top: 4px solid var(--p0); background: #f0f6ff; }
-  .card.sold-facility { border-top: 4px solid #b91c1c; background: #fff1f2; }
-  .card.goods { background: #f0fdf4; border: 1px dashed #22c55e; }
-  .card.passive { opacity: 0.9; background: #faf8f5; border-top: 4px solid #6b7280; }
+  .card.my-facility { border-top: 4px solid var(--p0); background: linear-gradient(180deg, #f0f6ff 0%, #e2edff 100%); }
+  .card.sold-facility { border-top: 4px solid #b91c1c; background: linear-gradient(180deg, #fff5f5 0%, #ffe2e2 100%); }
+  .card.goods { background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%); border: 1px dashed #22c55e; }
+  .card.passive { opacity: 0.92; border-top: 4px solid #6b7280; }
+
+  .card.flash-used { animation: workplaceFlash 1.1s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @keyframes workplaceFlash {
+    0% { transform: scale(1.05); box-shadow: 0 0 18px rgba(234, 179, 8, 0.9); border-color: #facc15; }
+    50% { transform: scale(1.02); box-shadow: 0 0 10px rgba(234, 179, 8, 0.5); }
+    100% { transform: scale(1); box-shadow: none; }
+  }
 
   .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
-  .card-name { font-size: 0.85rem; font-weight: 900; color: #111; }
-  .card-tag { font-size: 0.65rem; background: #ded2bf; padding: 1px 4px; border-radius: 3px; color: #333; }
+  .card-name { font-size: 0.85rem; font-weight: 900; color: #111; letter-spacing: 0.3px; }
+  .card-tag { font-size: 0.65rem; background: #ded2bf; padding: 1px 4px; border-radius: 3px; color: #333; font-weight: bold; }
   .card-sub { font-size: 0.72rem; color: #555; font-weight: bold; }
   .card-desc { font-size: 0.72rem; color: #222; line-height: 1.25; margin: 4px 0; flex: 1; }
 
   .worker-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 4px; min-height: 24px; }
-  .w-token {
-    width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 0.68rem; font-weight: 900;
-    display: flex; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.7);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.4); animation: tokenDrop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  }
-  @keyframes tokenDrop {
-    0% { transform: translateY(-16px) scale(1.4); opacity: 0; }
-    70% { transform: translateY(2px) scale(0.9); }
-    100% { transform: translateY(0) scale(1); opacity: 1; }
-  }
-  .w-token.p0 { background: var(--p0); } .w-token.p1 { background: var(--p1); } .w-token.p2 { background: var(--p2); } .w-token.p3 { background: var(--p3); }
+  .board-meeple { width: 22px; height: 22px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
 
   .btn-work {
-    width: 100%; margin-top: 6px; background: #15803d; color: #fff; border: none; padding: 6px 0;
+    width: 100%; margin-top: 6px; background: #15803d; color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 7px 0;
     border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer;
     box-shadow: 0 2px 0 #0f5132; transition: transform 0.05s ease;
   }
   .btn-work:active { transform: translateY(2px); box-shadow: none; }
   .btn-work:disabled { background: #888; opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
-  .player-box { background: #fff; border-radius: 6px; border: 2px solid #ccc; padding: 8px 10px; margin-bottom: 8px; }
+  .player-box { background: #fff; border-radius: 6px; border: 2px solid #ccc; padding: 8px 10px; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
   .player-box.p0 { border-left: 6px solid var(--p0); } .player-box.p1 { border-left: 6px solid var(--p1); } .player-box.p2 { border-left: 6px solid var(--p2); } .player-box.p3 { border-left: 6px solid var(--p3); }
   .player-box.active-turn { box-shadow: 0 0 10px var(--brass); border-color: var(--brass); }
   .p-top-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 900; }
@@ -177,66 +202,116 @@
   .p-b-pill.occupied { opacity: 0.5; text-decoration: line-through; }
 
   #log-stream {
-    background: #16120e; color: #f1f5f9; border: 1px solid #3d2f21; border-radius: 6px;
+    background: #140e0a; color: #f1f5f9; border: 1px solid #3d2f21; border-radius: 6px;
     padding: 10px; height: 480px; overflow-y: auto; -webkit-overflow-scrolling: touch;
     font-size: 0.8rem; line-height: 1.5; display: flex; flex-direction: column-reverse; gap: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  .log-line { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; color: #f1f5f9; }
+  .log-line { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; color: #f1f5f9; white-space: pre-line; }
 
-  nav#bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 74px; background: #16120e; border-top: 2px solid var(--brass); display: flex; z-index: 100; }
+  nav#bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 74px; background: #18120c; border-top: 2px solid var(--brass); display: flex; z-index: 100; }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; background: transparent; border: none; font-size: 0.75rem; font-weight: bold; cursor: pointer; position: relative; }
   .nav-item .icon { font-size: 1.45rem; margin-bottom: 2px; }
   .nav-item.active { color: var(--brass); background: rgba(212,175,55,0.08); }
   .nav-item.active::after { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 3px; background: var(--brass); }
   .badge-counter { position: absolute; top: 6px; right: 20%; background: #dc2626; color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 900; }
 
+  #build-sim-box {
+    background: #251c14; border: 2px solid var(--brass); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 10px; color: #fff; font-size: 0.8rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .sim-title { font-weight: 900; color: #facc15; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .sim-result-row { display: flex; gap: 10px; margin-top: 4px; font-size: 0.75rem; }
+  .sim-tag-ok { color: #4ade80; font-weight: bold; }
+  .sim-tag-ng { color: #f87171; font-weight: bold; }
+
   #card-cutin-layer { position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; z-index: 4000; }
+  .cutin-wrapper { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .cutin-wrapper.duration-short { animation: cardCutInShort 3.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .cutin-wrapper.duration-long { animation: cardCutInLong 4.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+  @keyframes cardCutInShort {
+    0% { transform: scale(0.3) translateY(60px) rotate(-6deg); opacity: 0; }
+    10% { transform: scale(1.06) translateY(-8px) rotate(0deg); opacity: 1; }
+    16% { transform: scale(1); }
+    86% { transform: scale(1) translateY(0); opacity: 1; }
+    100% { transform: scale(0.5) translateY(140px); opacity: 0; }
+  }
+
+  @keyframes cardCutInLong {
+    0% { transform: scale(0.3) translateY(60px) rotate(-6deg); opacity: 0; }
+    8% { transform: scale(1.06) translateY(-8px) rotate(0deg); opacity: 1; }
+    14% { transform: scale(1); }
+    88% { transform: scale(1) translateY(0); opacity: 1; }
+    100% { transform: scale(0.5) translateY(140px); opacity: 0; }
+  }
+
+  .cutin-cards-row { display: flex; gap: 8px; justify-content: center; align-items: stretch; flex-wrap: wrap; max-width: 95vw; max-height: 65vh; overflow-y: auto; }
   .cutin-card {
-    background: #fff; border: 3px solid var(--brass); border-radius: 10px; padding: 16px; width: 220px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(212,175,55,0.6); color: #111; text-align: center;
-    display: flex; flex-direction: column; gap: 6px; animation: cardZoomIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    background: #fffdfa; border: 3px solid var(--brass); border-radius: 10px;
+    padding: 12px; box-shadow: 0 14px 45px rgba(0,0,0,0.85); color: #111; text-align: center; display: flex; flex-direction: column; justify-content: space-between;
   }
-  @keyframes cardZoomIn {
-    0% { transform: scale(0.4) translateY(40px) rotate(-6deg); opacity: 0; }
-    20% { transform: scale(1.05) translateY(-6px) rotate(0deg); opacity: 1; }
-    30% { transform: scale(1); } 80% { transform: scale(1) translateY(0); opacity: 1; }
-    100% { transform: scale(0.6) translateY(120px); opacity: 0; }
+  .cutin-card.size-1 { width: 220px; min-height: 140px; }
+  .cutin-card.size-2 { width: 145px; min-height: 130px; padding: 8px; }
+  .cutin-card.size-3 { width: 110px; min-height: 115px; padding: 6px; }
+  .cutin-card.size-many { width: 95px; min-height: 100px; padding: 4px; }
+  .cutin-card.secret-card {
+    background: linear-gradient(135deg, #1f1811 25%, #2c2217 25%, #2c2217 50%, #1f1811 50%, #1f1811 75%, #2c2217 75%);
+    background-size: 16px 16px; border: 3px solid var(--brass); color: #facc15;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
-  .cutin-badge { font-size: 0.75rem; font-weight: 900; color: #15803d; letter-spacing: 1px; }
-  .cutin-name { font-size: 1.15rem; font-weight: 900; margin: 2px 0; }
-  .cutin-sub { font-size: 0.8rem; color: #555; font-weight: bold; }
-  .cutin-desc { font-size: 0.75rem; color: #222; background: #f7f3eb; padding: 6px; border-radius: 4px; }
+  .cutin-player-badge { font-size: 0.78rem; font-weight: 900; background: #2b1f14; color: #facc15; padding: 4px 10px; border-radius: 12px; display: inline-block; margin: 0 auto; }
+  .cutin-badge { font-size: 0.85rem; font-weight: 900; color: #15803d; letter-spacing: 1px; }
+  .cutin-name { font-size: 1.05rem; font-weight: 900; margin: 2px 0; color: #111; }
+  .cutin-sub { font-size: 0.75rem; color: #555; font-weight: bold; }
+  .cutin-desc { font-size: 0.72rem; color: #222; background: #f7f3eb; padding: 6px; border-radius: 4px; line-height: 1.25; margin-top: 4px; }
+
+  #round-splash-toast {
+    position: fixed; top: 38%; left: 8%; right: 8%; background: rgba(24, 19, 14, 0.97); border: 2px solid var(--brass);
+    border-radius: 14px; padding: 22px; text-align: center; z-index: 4600; pointer-events: none; box-shadow: 0 14px 45px rgba(0,0,0,0.9);
+    opacity: 0; transform: scale(0.7); transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  #round-splash-toast.show { opacity: 1; transform: scale(1); }
+  .round-toast-title { font-size: 1.45rem; font-weight: 900; color: #facc15; margin-bottom: 6px; letter-spacing: 1px; }
+  .round-toast-sub { font-size: 0.95rem; color: #fff; font-weight: bold; }
 
   #turn-splash-toast {
     position: fixed; top: 40%; left: 10%; right: 10%; background: rgba(18, 16, 14, 0.96); border: 2px solid var(--brass);
-    border-radius: 12px; padding: 16px; text-align: center; z-index: 4500; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    border-radius: 12px; padding: 18px; text-align: center; z-index: 4500; pointer-events: none;
     opacity: 0; transform: scale(0.8); transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
   #turn-splash-toast.show { opacity: 1; transform: scale(1); }
-  .toast-title { font-size: 1.25rem; font-weight: 900; color: #60a5fa; margin-bottom: 4px; }
-  .toast-sub { font-size: 0.85rem; color: #facc15; font-weight: bold; }
+  .toast-title { font-size: 1.35rem; font-weight: 900; color: #60a5fa; margin-bottom: 4px; }
+  .toast-sub { font-size: 0.88rem; color: #facc15; font-weight: bold; }
 
-  /* モーダル */
   .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 5000; padding: 14px; }
-  .modal-box { background: var(--board-bg); border: 3px solid var(--brass); border-radius: 8px; padding: 16px; width: 100%; max-width: 540px; max-height: 88vh; display: flex; flex-direction: column; color: #222; }
-  .modal-title { font-size: 1.05rem; font-weight: 900; margin-bottom: 6px; color: #111; }
+  .modal-box { background: #fdfbf7; border: 3px solid var(--brass); border-radius: 8px; padding: 16px; width: 100%; max-width: 580px; max-height: 94vh; display: flex; flex-direction: column; color: #111; }
+  .modal-title { font-size: 1.15rem; font-weight: 900; margin-bottom: 6px; color: #0f172a; }
   .modal-cards { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; -webkit-overflow-scrolling: touch; }
   .modal-card { background: #fff; border: 2px solid #aaa; border-radius: 6px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
   .modal-card.chosen { border-color: #16a34a; background: #f0fdf4; outline: 3px solid #16a34a; transform: scale(0.98); }
-  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
-  .m-btn { padding: 8px 16px; border-radius: 4px; font-size: 0.85rem; font-weight: 900; cursor: pointer; border: none; }
+  
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 10px; }
+  .m-btn { padding: 8px 18px; border-radius: 4px; font-size: 0.85rem; font-weight: 900; cursor: pointer; border: none; }
   .m-btn.ok { background: #16a34a; color: #fff; } .m-btn.ok:disabled { background: #999; cursor: not-allowed; }
+  .m-btn.cancel { background: #4b5563; color: #fff; margin-right: auto; }
+  .m-btn.cancel:active { background: #374151; }
 
-  .score-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.78rem; text-align: center; }
-  .score-table th, .score-table td { border: 1px solid #b5a389; padding: 5px 4px; }
-  .score-table th { background: #dcd0be; color: #333; }
-  .score-table tr.winner-row { background: #fef08a; font-weight: 900; }
+  .score-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.82rem; text-align: center; color: #0f172a; background: #fff; }
+  .score-table th { background: #2b1f14; color: #facc15; font-weight: 900; padding: 7px 4px; border: 1px solid #4a3a2a; }
+  .score-table td { border: 1px solid #cbd5e1; padding: 6px 4px; font-weight: 700; color: #0f172a; }
+  .score-table tr:nth-child(even) { background: #f8fafc; }
+  .score-table tr.winner-row { background: #fef9c3 !important; }
 </style>
 </head>
 <body>
 
+<canvas id="fx-canvas"></canvas>
+
+<!-- 診断用デバッグパネル -->
 <div id="debug-error-panel">
-  <h3>🚨 スクリプトエラー検知</h3>
+  <h3>🚨 スクリプト・通信エラー検知</h3>
   <div style="font-size:0.75rem; color:#aaa;">以下の内容をコピーして共有してください：</div>
   <div id="debug-error-trace"></div>
   <div style="font-size:0.75rem; color:#aaa; margin-top:8px;">直前の処理履歴（トレース）：</div>
@@ -251,6 +326,10 @@
 <div id="turn-splash-toast">
   <div class="toast-title">YOUR TURN!</div>
   <div class="toast-sub">労働者を派遣してください</div>
+</div>
+<div id="round-splash-toast">
+  <div class="round-toast-title" id="round-toast-title">第 1 ラウンド</div>
+  <div class="round-toast-sub" id="round-toast-sub">賃金: $2 / 1人</div>
 </div>
 
 <!-- ロビー画面 -->
@@ -299,10 +378,10 @@
     <span class="phase-pill" id="hud-phase-pill">🟢 アクション中</span>
   </div>
   <div class="header-actions">
-    <div class="econ-capsule">
+    <div class="econ-capsule" id="hud-household-box">
       <div style="font-size:0.75rem; color:#aaa;">家計</div>
       <div class="econ-val household" id="hud-household">$0</div>
-      <div style="font-size:0.75rem; color:#aaa; margin-left:4px;">国庫</div>
+      <div style="font-size:0.75rem; color:#aaa; margin-left:4px;" id="hud-treasury-box">国庫</div>
       <div class="econ-val treasury">∞</div>
     </div>
     <button class="btn-audio" id="btn-sound-toggle" onclick="toggleSound()">🔊 ON</button>
@@ -358,13 +437,25 @@
         <span id="hand-heading">🎴 あなたの手札</span>
         <span id="hand-limit-badge" style="font-size:0.75rem; color:#555;">上限: 5枚</span>
       </div>
+      
+      <div id="build-sim-box">
+        <div class="sim-title">
+          <span>📐 建築シミュレーター</span>
+          <span style="font-size:0.7rem; color:#aaa;">手札の建物をタップして試算</span>
+        </div>
+        <div id="sim-content" style="font-size:0.75rem; color:#ddd;">手札のカードを選択すると、必要コストと成立可否を判定します。</div>
+      </div>
+
       <div class="card-grid" id="hand-grid"></div>
     </div>
   </div>
 
   <div class="tab-content" id="tab-log">
     <div class="section-card">
-      <div class="section-header"><span>📜 対戦活動ログ</span></div>
+      <div class="section-header">
+        <span>📜 対戦活動ログ</span>
+        <button class="lobby-btn sec" style="padding:4px 10px; font-size:0.75rem;" onclick="copyGameLog()">📋 ログをコピー</button>
+      </div>
       <div id="log-stream"></div>
     </div>
   </div>
@@ -381,7 +472,36 @@
 
 <script>
 // ==========================================
-// 診断用実行トレース
+// 1. Firebase ＆ 接続管理
+// ==========================================
+var db = null;
+const firebaseConfig = {
+  apiKey: "AIzaSyCensgfS0V_tUY4O9lV_RNXiLiK9tMmSYs",
+  authDomain: "national-economy-403a1.firebaseapp.com",
+  databaseURL: "https://national-economy-403a1-default-rtdb.firebaseio.com",
+  projectId: "national-economy-403a1",
+  storageBucket: "national-economy-403a1.firebasestorage.app",
+  messagingSenderId: "418764514034",
+  appId: "1:418764514034:web:1823769905e021b386a66b",
+  measurementId: "G-V4EMB9HY36"
+};
+
+try {
+  if (typeof firebase !== 'undefined') {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    window.db = db;
+  }
+} catch (e) { console.error("Firebase init:", e); }
+
+let myPlayerToken = localStorage.getItem('ne_player_token');
+if (!myPlayerToken) {
+  myPlayerToken = 'tok_' + Math.random().toString(36).substring(2, 10);
+  localStorage.setItem('ne_player_token', myPlayerToken);
+}
+
+// ==========================================
+// 2. 診断＆エラートレース
 // ==========================================
 const executionTrace = [];
 function recordTrace(step) {
@@ -399,29 +519,118 @@ function displayCrashPanel(msg, traceText) {
 }
 
 window.onerror = function(msg, url, line, col, error) {
-  const stack = error && error.stack ? error.stack : `at ${url}:${line}:${col}`;
-  displayCrashPanel(`GlobalError: ${msg}`, stack);
+  displayCrashPanel(`GlobalError: ${msg}`, error && error.stack ? error.stack : `at ${url}:${line}:${col}`);
   return false;
 };
-
-window.addEventListener('unhandledrejection', function(event) {
-  displayCrashPanel(`PromiseRejection: ${event.reason}`, event.reason && event.reason.stack);
-});
 
 function copyDebugInfo() {
   const t = document.getElementById('debug-error-trace').innerText;
   const h = document.getElementById('debug-history').innerText;
-  navigator.clipboard.writeText(`=== ERROR ===\n${t}\n\n=== TRACE ===\n${h}`).then(() => {
-    alert('診断情報をクリップボードにコピーしました！');
-  });
+  navigator.clipboard.writeText(`=== ERROR ===\n${t}\n\n=== TRACE ===\n${h}`).then(() => alert('診断情報をコピーしました！'));
+}
+
+function copyGameLog() {
+  const logs = ensureArray(G.logHistory);
+  if (!logs.length) { alert('ログがまだありません。'); return; }
+  navigator.clipboard.writeText(logs.join('\n\n')).then(() => alert('対戦ログをコピーしました！'));
 }
 
 // ==========================================
-// 効果音
+// 3. UI 演出 & サウンド
 // ==========================================
-let audioEnabled = true;
-let audioCtx = null;
+function getMeepleSvg(colorHex, isUsed = false, className = "meeple-icon") {
+  return `<svg viewBox="0 0 24 24" class="${className} ${isUsed ? 'used' : 'active'}" style="color:${isUsed ? '#555' : colorHex};">
+    <path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm4 7c-1 0-2 .5-4 .5s-3-.5-4-.5c-2 0-3 1.5-3 3.5 0 1.2.6 2.2 1.5 2.8L5 22h4l1-5h4l1 5h4l-1.5-6.7c.9-.6 1.5-1.6 1.5-2.8 0-2-1-3.5-3-3.5z" fill="currentColor"/>
+  </svg>`;
+}
 
+let fxCanvas = null, fxCtx = null, particles = [];
+function initFxCanvas() {
+  fxCanvas = document.getElementById('fx-canvas');
+  if (fxCanvas) {
+    fxCtx = fxCanvas.getContext('2d');
+    resizeCanvas();
+  }
+}
+function resizeCanvas() {
+  if (fxCanvas) {
+    fxCanvas.width = window.innerWidth;
+    fxCanvas.height = window.innerHeight;
+  }
+}
+window.addEventListener('resize', resizeCanvas);
+
+function getSafeElementCenter(el, fallbackPId = null) {
+  if (el) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
+  }
+  if (fallbackPId !== null) {
+    const monitorBoxes = document.querySelectorAll('.monitor-p-box');
+    if (monitorBoxes && monitorBoxes[fallbackPId]) {
+      const rect = monitorBoxes[fallbackPId].getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
+  }
+  return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+}
+
+function spawnCoinParticles(fromEl, toEl, count = 7, fromPId = null, toPId = null) {
+  if (!fxCanvas) initFxCanvas();
+  if (!fxCanvas) return;
+  const fromPos = getSafeElementCenter(fromEl, fromPId);
+  const toPos = getSafeElementCenter(toEl, toPId);
+  const sx = fromPos.x, sy = fromPos.y;
+  const ex = toPos.x, ey = toPos.y;
+
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      particles.push({
+        sx, sy, ex, ey,
+        cpX: (sx + ex) / 2 + (Math.random() - 0.5) * 120,
+        cpY: Math.min(sy, ey) - 40 - Math.random() * 50,
+        progress: 0,
+        speed: 0.026 + Math.random() * 0.008,
+        size: 13 + Math.random() * 4,
+        rot: Math.random() * 6
+      });
+    }, i * 40);
+  }
+}
+
+function updateAndDrawParticles() {
+  if (fxCanvas && fxCtx) {
+    fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.progress += p.speed;
+      if (p.progress >= 1) { particles.splice(i, 1); continue; }
+      const t = p.progress;
+      const x = (1 - t) * (1 - t) * p.sx + 2 * (1 - t) * t * p.cpX + t * t * p.ex;
+      const y = (1 - t) * (1 - t) * p.sy + 2 * (1 - t) * t * p.cpY + t * t * p.ey;
+      p.rot += 0.2;
+      fxCtx.save();
+      fxCtx.translate(x, y); fxCtx.rotate(p.rot);
+      fxCtx.fillStyle = '#facc15'; fxCtx.strokeStyle = '#ca8a04'; fxCtx.lineWidth = 1.5;
+      fxCtx.beginPath(); fxCtx.arc(0, 0, p.size / 2, 0, Math.PI * 2); fxCtx.fill(); fxCtx.stroke();
+      fxCtx.fillStyle = '#713f12'; fxCtx.font = `bold ${Math.floor(p.size * 0.65)}px sans-serif`;
+      fxCtx.textAlign = 'center'; fxCtx.textBaseline = 'middle'; fxCtx.fillText('$', 0, 0);
+      fxCtx.restore();
+    }
+  }
+  requestAnimationFrame(updateAndDrawParticles);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initFxCanvas();
+  requestAnimationFrame(updateAndDrawParticles);
+});
+initFxCanvas();
+requestAnimationFrame(updateAndDrawParticles);
+
+let audioEnabled = true, audioCtx = null;
 function initAudio() {
   if (!audioCtx) {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -429,105 +638,120 @@ function initAudio() {
   }
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 }
-
-function toggleSound() {
-  audioEnabled = !audioEnabled;
-  document.getElementById('btn-sound-toggle').innerText = audioEnabled ? '🔊 ON' : '🔇 OFF';
-}
+function toggleSound() { audioEnabled = !audioEnabled; document.getElementById('btn-sound-toggle').innerText = audioEnabled ? '🔊 ON' : '🔇 OFF'; }
 
 function playTone(freq, type, duration, gainVal = 0.15) {
   if (!audioEnabled) return;
   initAudio();
   if (!audioCtx) return;
   try {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
     gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
   } catch(e) {}
 }
 
-function playWorkerSound() {
-  if (!audioEnabled) return;
-  initAudio();
-  playTone(280, 'triangle', 0.08, 0.2);
-  setTimeout(() => playTone(140, 'sine', 0.12, 0.3), 30);
-}
+const playWorkerSound = () => { playTone(260, 'triangle', 0.1, 0.25); setTimeout(() => playTone(130, 'sine', 0.16, 0.35), 40); };
+const playCardSound = () => { playTone(550, 'sine', 0.06, 0.12); setTimeout(() => playTone(900, 'sine', 0.12, 0.16), 50); };
+const playCoinSound = () => { playTone(987.77, 'sine', 0.18, 0.18); setTimeout(() => playTone(1318.51, 'sine', 0.4, 0.22), 90); };
+const playBuildSound = () => { playTone(300, 'square', 0.08, 0.15); setTimeout(() => playTone(440, 'square', 0.12, 0.18), 100); };
+const playTurnSound = () => { playTone(523.25, 'triangle', 0.18, 0.16); setTimeout(() => playTone(659.25, 'triangle', 0.18, 0.16), 110); setTimeout(() => playTone(783.99, 'triangle', 0.35, 0.22), 220); };
+const playBuzzerSound = () => { playTone(180, 'sawtooth', 0.2, 0.25); setTimeout(() => playTone(140, 'sawtooth', 0.35, 0.3), 150); };
 
-function playCardSound() {
-  if (!audioEnabled) return;
-  playTone(600, 'sine', 0.05, 0.1);
-  setTimeout(() => playTone(950, 'sine', 0.08, 0.12), 40);
-}
-
-function playCoinSound() {
-  if (!audioEnabled) return;
-  playTone(987.77, 'sine', 0.15, 0.15);
-  setTimeout(() => playTone(1318.51, 'sine', 0.35, 0.2), 80);
-}
-
-function playBuildSound() {
-  if (!audioEnabled) return;
-  playTone(320, 'square', 0.06, 0.12);
-  setTimeout(() => playTone(440, 'square', 0.1, 0.15), 90);
-}
-
-function playTurnSound() {
-  if (!audioEnabled) return;
-  playTone(523.25, 'triangle', 0.15, 0.15);
-  setTimeout(() => playTone(659.25, 'triangle', 0.15, 0.15), 100);
-  setTimeout(() => playTone(783.99, 'triangle', 0.3, 0.2), 200);
-}
-
-function showCardCutIn(card, titlePrefix = "GET CARD!") {
+let cutinTimerId = null;
+function showCardsCutIn(cards, titlePrefix = "GET CARD!", playerName = "", playerIdx = null, forceReveal = false) {
+  const cardList = ensureArray(cards);
+  if (!cardList.length) return;
   playCardSound();
+
   const layer = document.getElementById('card-cutin-layer');
+  if (cutinTimerId) clearTimeout(cutinTimerId);
+
+  const isMany = cardList.length >= 2;
+  const isMe = (playerIdx === null || playerIdx === mySeatIndex);
+  let sizeClass = cardList.length === 2 ? 'size-2' : (cardList.length >= 5 ? 'size-many' : (cardList.length >= 3 ? 'size-3' : 'size-1'));
+
+  let cardsHtml = cardList.map(card => {
+    if (!card) return '';
+    const isSecret = !isMe && !card.isGoods && !forceReveal;
+    if (isSecret) {
+      return `<div class="cutin-card secret-card ${sizeClass}">
+        <div style="font-size:2rem; margin-bottom:4px;">🎴</div>
+        <div style="font-weight:900; letter-spacing:1px; font-size:0.85rem;">非公開</div>
+        <div style="font-size:0.68rem; color:#aaa; margin-top:2px;">(手札)</div>
+      </div>`;
+    }
+    return `<div class="cutin-card ${sizeClass}">
+      <div>
+        <div class="cutin-name" style="${cardList.length >= 3 ? 'font-size:0.85rem;' : ''}">${card.name}</div>
+        <div class="cutin-sub" style="${cardList.length >= 3 ? 'font-size:0.7rem;' : ''}">${card.isGoods ? '消費財' : `Cost:${card.cost} VP:${card.vp} (${card.tag})`}</div>
+      </div>
+      <div class="cutin-desc" style="${cardList.length >= 3 ? 'font-size:0.68rem; padding:4px;' : ''}">${card.desc}</div>
+    </div>`;
+  }).join('');
+
   layer.innerHTML = `
-    <div class="cutin-card">
+    <div class="cutin-wrapper ${isMany ? 'duration-long' : 'duration-short'}">
+      ${playerName ? `<div class="cutin-player-badge">${playerName}</div>` : ''}
       <div class="cutin-badge">✨ ${titlePrefix}</div>
-      <div class="cutin-name">${card.name}</div>
-      <div class="cutin-sub">${card.isGoods ? '消費財' : `Cost: ${card.cost} / VP: ${card.vp} (${card.tag})`}</div>
-      <div class="cutin-desc">${card.desc}</div>
+      <div class="cutin-cards-row">${cardsHtml}</div>
     </div>
   `;
-  setTimeout(() => { layer.innerHTML = ''; }, 1200);
+  cutinTimerId = setTimeout(() => { layer.innerHTML = ''; cutinTimerId = null; }, isMany ? 4800 : 3500);
+}
+
+function showDebtCutIn(playerName, unpaidCount, penaltyVp) {
+  playBuzzerSound();
+  const layer = document.getElementById('card-cutin-layer');
+  if (cutinTimerId) clearTimeout(cutinTimerId);
+  layer.innerHTML = `
+    <div class="cutin-wrapper duration-long">
+      <div class="cutin-player-badge" style="background:#7f1d1d; color:#fff;">${playerName}</div>
+      <div class="cutin-badge" style="color:#ef4444;">⚠️ 給料未払い発生！</div>
+      <div class="cutin-card size-1" style="border-color:#ef4444; background:#fff5f5;">
+        <div><div style="font-size:2.2rem;">📜</div><div class="cutin-name" style="color:#b91c1c;">未払い賃金票</div>
+        <div style="font-size:1.05rem; font-weight:900; color:#dc2626; margin:4px 0;">× ${unpaidCount} 枚 受取</div></div>
+        <div class="cutin-desc" style="background:#fee2e2; color:#991b1b; font-weight:bold;">ペナルティ: -${penaltyVp} 点 ($${penaltyVp} 相当)</div>
+      </div>
+    </div>
+  `;
+  cutinTimerId = setTimeout(() => { layer.innerHTML = ''; cutinTimerId = null; }, 4500);
+}
+
+function showRoundSplash(roundNum, startPlayerName = "") {
+  playTone(440, 'triangle', 0.18, 0.2);
+  setTimeout(() => playTone(659.25, 'triangle', 0.25, 0.25), 120);
+  const toast = document.getElementById('round-splash-toast');
+  document.getElementById('round-toast-title').innerText = `第 ${roundNum} / 9 ラウンド 開始`;
+  document.getElementById('round-toast-sub').innerHTML = `賃金: $${WAGE_MAP[roundNum]} / 1人 ${startPlayerName ? `<br><span style="color:#facc15; font-size:0.95rem; margin-top:4px; display:inline-block;">🚩 スタートプレイヤー: <strong>${startPlayerName}</strong></span>` : ''}`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2800);
 }
 
 function showMyTurnToast() {
   playTurnSound();
   const toast = document.getElementById('turn-splash-toast');
   toast.classList.add('show');
-  setTimeout(() => { toast.classList.remove('show'); }, 1400);
+  setTimeout(() => toast.classList.remove('show'), 2400);
+}
+
+function flashWorkplaceCard(wpName) {
+  document.querySelectorAll('.card').forEach(c => {
+    const el = c.querySelector('.card-name');
+    if (el && el.innerText.includes(wpName)) {
+      c.classList.remove('flash-used');
+      void c.offsetWidth;
+      c.classList.add('flash-used');
+    }
+  });
 }
 
 // ==========================================
-// Firebase設定
+// 4. 定数・データ定義
 // ==========================================
-const firebaseConfig = {
-  apiKey: "AIzaSyCensgfS0V_tUY4O9lV_RNXiLiK9tMmSYs",
-  authDomain: "national-economy-403a1.firebaseapp.com",
-  databaseURL: "https://national-economy-403a1-default-rtdb.firebaseio.com",
-  projectId: "national-economy-403a1",
-  storageBucket: "national-economy-403a1.firebasestorage.app",
-  messagingSenderId: "418764514034",
-  appId: "1:418764514034:web:1823769905e021b386a66b",
-  measurementId: "G-V4EMB9HY36"
-};
-
-let db = null;
-try {
-  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-  db = firebase.database();
-} catch (e) {
-  displayCrashPanel('Firebase Init Error', e.stack);
-}
-
 const CARD_SPECS = [
   { id: 'farm', name: '農場', cost: 1, vp: 6, count: 8, tag: '農園', desc: '消費財を2枚引く。', sellable: true },
   { id: 'burn', name: '焼畑', cost: 1, vp: 0, count: 2, tag: '農園', desc: '消費財を5枚引く。R終了時に捨て札へ。', sellable: false },
@@ -558,16 +782,14 @@ const CARD_SPECS = [
 const WAGE_MAP = [0, 2, 2, 3, 3, 3, 4, 4, 5, 5];
 const P_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea'];
 
-let currentRoomId = null;
-let mySeatIndex = 0;
+let currentRoomId = null, mySeatIndex = null;
 let myPlayerName = localStorage.getItem('ne_player_name') || 'プレイヤー1';
-let hasJoinedRoom = false;
-let lastTurnPlayer = null;
-let cpuTimerId = null;
+let hasJoinedRoom = false, lastTurnPlayer = null, lastRenderedRound = null, lastProcessedNoticeTs = 0, cpuTimerId = null;
 
 let G = {
   round: 1, household: 0, deck: [], discard: [], publicWorkplaces: [], soldWorkplaces: [],
-  players: [], startPlayer: 0, turnPlayer: 0, speed: 600, phase: 'action', logHistory: [], isCleaningUp: false
+  players: [], startPlayer: 0, turnPlayer: 0, speed: 1800, phase: 'action', logHistory: [],
+  historyTimeline: [], isCleaningUp: false
 };
 
 function ensureArray(val) {
@@ -576,10 +798,9 @@ function ensureArray(val) {
   const arr = [];
   for (let k in val) {
     const idx = parseInt(k, 10);
-    if (!isNaN(idx)) arr[idx] = val[k];
-    else arr.push(val[k]);
+    if (!isNaN(idx)) arr[idx] = val[k]; else arr.push(val[k]);
   }
-  return arr.filter(item => item !== undefined);
+  return arr.filter(i => i !== undefined);
 }
 
 function sanitizeState(st) {
@@ -590,10 +811,10 @@ function sanitizeState(st) {
   st.soldWorkplaces = ensureArray(st.soldWorkplaces);
   st.logHistory = ensureArray(st.logHistory);
   st.players = ensureArray(st.players);
+  st.historyTimeline = ensureArray(st.historyTimeline);
 
   st.publicWorkplaces.forEach(w => { if (w) w.workers = ensureArray(w.workers); });
   st.soldWorkplaces.forEach(w => { if (w) w.workers = ensureArray(w.workers); });
-
   st.players.forEach(p => {
     if (p) {
       p.hand = ensureArray(p.hand);
@@ -604,335 +825,15 @@ function sanitizeState(st) {
   return st;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  const savedRoom = localStorage.getItem('ne_room_id');
-  if (savedRoom) {
-    const input = document.getElementById('room-id-input');
-    if (input) input.value = savedRoom;
-  }
-});
-
-setInterval(() => {
-  if (G && (G.phase === 'action' || G.phase === 'wage_sell' || G.phase === 'hand_discard') && currentRoomId) {
-    const p = G.players ? G.players[G.turnPlayer] : null;
-    if (p && !p.isHuman && !cpuTimerId) {
-      recordTrace(`ウォッチドッグ検知: CPU ${p.id} 再開試行 (${G.phase})`);
-      checkAndTriggerCpu();
-    }
-  }
-}, 1500);
-
 // ==========================================
-// ルーム管理
-// ==========================================
-function closeAndDestroyRoom() {
-  if (!currentRoomId) return;
-  if (!confirm(`部屋「${currentRoomId}」を完全に閉じて解散しますか？\n（全員が最初の画面に戻ります）`)) return;
-  localStorage.removeItem('ne_current_seat');
-  db.ref('rooms/' + currentRoomId).remove().then(() => {
-    alert(`部屋「${currentRoomId}」を解散しました。`);
-    location.reload();
-  });
-}
-
-function joinOrCreateRoom() {
-  initAudio();
-  const rId = document.getElementById('room-id-input').value.trim();
-  if (!rId) { alert('部屋番号を入力してください。'); return; }
-  currentRoomId = rId;
-  localStorage.setItem('ne_room_id', currentRoomId);
-
-  document.getElementById('current-room-text').innerText = rId;
-  document.getElementById('room-lobby').style.display = 'flex';
-
-  const roomRef = db.ref('rooms/' + currentRoomId);
-  roomRef.on('value', (snap) => {
-    const data = snap.val();
-    if (!data) {
-      if (hasJoinedRoom) {
-        alert(`部屋「${currentRoomId}」が解散されました。`);
-        localStorage.removeItem('ne_current_seat');
-        location.reload();
-        return;
-      }
-      hasJoinedRoom = true;
-      mySeatIndex = 0;
-      localStorage.setItem('ne_current_seat', '0');
-      const initialRoom = {
-        gameStarted: false,
-        slots: [
-          { type: 'human', name: myPlayerName },
-          { type: 'cpu', name: 'CPU 1' },
-          { type: 'cpu', name: 'CPU 2' }
-        ]
-      };
-      roomRef.set(initialRoom);
-    } else {
-      hasJoinedRoom = true;
-      const savedSeat = localStorage.getItem('ne_current_seat');
-      if (savedSeat !== null && data.slots && data.slots[parseInt(savedSeat, 10)]) {
-        mySeatIndex = parseInt(savedSeat, 10);
-      }
-
-      renderLobbySlots(data);
-
-      if (data.gameStarted && data.state) {
-        document.getElementById('lobby-screen').style.display = 'none';
-        G = sanitizeState(data.state);
-
-        if (G.phase === 'action' && G.turnPlayer === mySeatIndex && lastTurnPlayer !== mySeatIndex) {
-          showMyTurnToast();
-        }
-        lastTurnPlayer = G.turnPlayer;
-
-        renderAll();
-        checkAndTriggerCpu();
-      }
-    }
-  });
-}
-
-function checkAndTriggerCpu() {
-  if (!G) return;
-  const currentP = G.players ? G.players[G.turnPlayer] : null;
-  if (!currentP || currentP.isHuman) return;
-
-  const firstHuman = G.players.find(p => p && p.isHuman);
-  const amICpuRunner = (firstHuman && firstHuman.id === mySeatIndex);
-  if (!amICpuRunner) return;
-
-  recordTrace(`CPU手番予約: P${currentP.id} (${currentP.name}) [${G.phase}]`);
-
-  if (cpuTimerId) clearTimeout(cpuTimerId);
-
-  cpuTimerId = setTimeout(() => {
-    cpuTimerId = null;
-    const p = G.players ? G.players[G.turnPlayer] : null;
-    if (!p || p.isHuman) return;
-
-    if (G.phase === 'action') {
-      cpuTurnAdvanced(p);
-    } else if (G.phase === 'wage_sell') {
-      cpuHandleWageSell(p);
-    } else if (G.phase === 'hand_discard') {
-      cpuHandleHandDiscard(p);
-    }
-  }, G.speed || 600);
-}
-
-function renderLobbySlots(data) {
-  const container = document.getElementById('slots-container');
-  container.innerHTML = '';
-  const slots = ensureArray(data.slots);
-
-  document.getElementById('slot-count-badge').innerText = `現在: ${slots.length} 人対戦`;
-  document.getElementById('btn-add-slot').style.display = (slots.length < 4) ? 'block' : 'none';
-
-  slots.forEach((s, idx) => {
-    if (!s) return;
-    const row = document.createElement('div');
-    const isMe = (mySeatIndex === idx);
-
-    row.className = `slot-row ${isMe ? 'my-slot' : ''}`;
-
-    let statusText = '';
-    if (isMe) statusText = '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>';
-    else if (s.type === 'human') statusText = '<span style="color:#4ade80; font-size:0.75rem;"> (参加中)</span>';
-    else statusText = '<span style="font-size:0.75rem; color:#aaa;"> (CPU)</span>';
-
-    row.innerHTML = `
-      <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-        <strong style="color:${P_COLORS[idx] || '#aaa'}">P${idx+1}:</strong> 
-        <span style="font-weight:bold;">${s.name}</span>
-        ${statusText}
-      </div>
-      <div style="display:flex; gap:4px; align-items:center;">
-        ${isMe ? `
-          <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="renameMe(${idx})">名前変更</button>
-        ` : `
-          <button class="lobby-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="takeSlot(${idx})">ここに着席</button>
-          <button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="toggleSlotType(${idx})">${s.type === 'human' ? 'CPU化' : '人間に'}</button>
-          ${slots.length > 2 ? `<button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="removeSlot(${idx})">🗑️</button>` : ''}
-        `}
-      </div>
-    `;
-    container.appendChild(row);
-  });
-}
-
-function takeSlot(targetIdx) {
-  initAudio();
-  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
-    let slots = ensureArray(snap.val());
-    if (!slots[targetIdx]) return;
-
-    if (mySeatIndex !== null && mySeatIndex !== targetIdx && slots[mySeatIndex]) {
-      slots[mySeatIndex] = { type: 'cpu', name: `CPU ${mySeatIndex}` };
-    }
-
-    slots[targetIdx] = { type: 'human', name: myPlayerName };
-    mySeatIndex = targetIdx;
-    localStorage.setItem('ne_current_seat', targetIdx.toString());
-    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
-  });
-}
-
-function renameMe(idx) {
-  const name = prompt('プレイヤー名を入力:', myPlayerName);
-  if (!name) return;
-  myPlayerName = name;
-  localStorage.setItem('ne_player_name', name);
-  db.ref(`rooms/${currentRoomId}/slots/${idx}/name`).set(name);
-}
-
-function toggleSlotType(idx) {
-  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
-    let slots = ensureArray(snap.val());
-    if (!slots[idx]) return;
-    const nextType = (slots[idx].type === 'human') ? 'cpu' : 'human';
-    slots[idx] = { type: nextType, name: (nextType === 'cpu') ? `CPU ${idx}` : `プレイヤー${idx+1}` };
-    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
-  });
-}
-
-function addSlot() {
-  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
-    let slots = ensureArray(snap.val());
-    if (slots.length >= 4) return;
-    slots.push({ type: 'cpu', name: `CPU ${slots.length}` });
-    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
-  });
-}
-
-function removeSlot(idx) {
-  db.ref(`rooms/${currentRoomId}/slots`).once('value', (snap) => {
-    let slots = ensureArray(snap.val());
-    if (slots.length <= 2) { alert('最低2人必要です。'); return; }
-    slots.splice(idx, 1);
-    slots.forEach((item, i) => {
-      if (item && item.type === 'cpu' && item.name.startsWith('CPU')) item.name = `CPU ${i}`;
-    });
-    if (mySeatIndex === idx) mySeatIndex = 0;
-    else if (mySeatIndex > idx) mySeatIndex--;
-    localStorage.setItem('ne_current_seat', mySeatIndex.toString());
-    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
-  });
-}
-
-function hostStartGame() {
-  initAudio();
-  if (!currentRoomId) return;
-
-  const btn = document.getElementById('btn-start-online-game');
-  btn.disabled = true;
-  btn.innerText = '⏳ 開始中...';
-
-  db.ref(`rooms/${currentRoomId}`).once('value', (snap) => {
-    const rData = snap.val();
-    if (!rData) {
-      alert('部屋が見つかりません。');
-      btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
-      return;
-    }
-    let slots = ensureArray(rData.slots);
-    if (slots.length < 2) {
-      alert('ゲームを開始するには最低2人の参加枠が必要です。');
-      btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
-      return;
-    }
-
-    if (mySeatIndex === null || !slots[mySeatIndex] || slots[mySeatIndex].type !== 'human') {
-      const emptyIdx = slots.findIndex(s => s && s.type === 'human');
-      mySeatIndex = (emptyIdx !== -1) ? emptyIdx : 0;
-      slots[mySeatIndex] = { type: 'human', name: myPlayerName };
-    }
-    localStorage.setItem('ne_current_seat', mySeatIndex.toString());
-
-    const deck = [];
-    CARD_SPECS.forEach(spec => {
-      for (let i = 0; i < spec.count; i++) deck.push({ ...spec, uid: `${spec.id}_${i}`, isGoods: false });
-    });
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-
-    const numP = slots.length;
-    const startP = Math.floor(Math.random() * numP);
-    const players = slots.map((s, idx) => ({
-      id: idx,
-      name: s.name || `P${idx+1}`,
-      isHuman: (s.type === 'human'),
-      money: 0,
-      workers: 2,
-      newWorkers: 0,
-      placedWorkers: 0,
-      buildings: [],
-      hand: [],
-      debts: 0
-    }));
-
-    for (let order = 0; order < numP; order++) {
-      players[(startP + order) % numP].money = 5 + order;
-    }
-    players.forEach(p => {
-      for (let i = 0; i < 3; i++) p.hand.push(deck.pop());
-    });
-
-    const publicWorkplaces = [
-      { id: 'mine', name: '鉱山', desc: 'カードを1枚引く。', capacity: 99, workers: [] },
-      { id: 'carpenter', name: '大工', desc: '建物を1つ建設する。', capacity: 3, workers: [] },
-      { id: 'school', name: '学校', desc: '労働者を1人増やす（今R稼働不可・給料発生）。', capacity: 1, workers: [] },
-      { id: 'quarry', name: '採石場', desc: 'カードを1枚引き、次RのスタPになる。', capacity: 1, workers: [] }
-    ];
-
-    const state = {
-      round: 1,
-      household: 0,
-      deck: deck,
-      discard: [],
-      publicWorkplaces: publicWorkplaces,
-      soldWorkplaces: [],
-      players: players,
-      startPlayer: startP,
-      turnPlayer: startP,
-      speed: 600,
-      phase: 'action',
-      logHistory: [`[R1] 🎮 ゲーム開始！ (${numP}人対戦 / スタートP: ${players[startP].name})`],
-      isCleaningUp: false
-    };
-
-    const cleanState = JSON.parse(JSON.stringify(state));
-
-    db.ref(`rooms/${currentRoomId}`).update({
-      gameStarted: true,
-      slots: slots,
-      state: cleanState
-    }).catch(err => {
-      displayCrashPanel('ゲーム開始書込エラー', err.stack);
-      btn.disabled = false; btn.innerText = '▶ ゲームを開始する';
-    });
-  });
-}
-
-function syncStateToFirebase(newG) {
-  G = sanitizeState(newG);
-  const cleanData = JSON.parse(JSON.stringify(G));
-  db.ref(`rooms/${currentRoomId}/state`).set(cleanData).catch(err => {
-    displayCrashPanel('Firebase同期エラー (set failed)', err.stack);
-  });
-}
-
-// ==========================================
-// ゲームエンジン補助
+// 5. ゲームロジック共通ヘルパー
 // ==========================================
 function drawCardFromState(st) {
   st.deck = ensureArray(st.deck);
   st.discard = ensureArray(st.discard);
-  if (st.deck.length === 0) {
-    if (st.discard.length === 0) return createGoods();
-    st.deck = st.discard;
-    st.discard = [];
+  if (!st.deck.length) {
+    if (!st.discard.length) return createGoods();
+    st.deck = st.discard; st.discard = [];
     for (let i = st.deck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [st.deck[i], st.deck[j]] = [st.deck[j], st.deck[i]];
@@ -946,21 +847,33 @@ function createGoods() {
 }
 
 function getHandLimit(p) {
-  const warehouses = ensureArray(p.buildings).filter(b => b && b.id === 'warehouse').length;
-  return 5 + warehouses * 4;
+  return 5 + ensureArray(p.buildings).filter(b => b && b.id === 'warehouse').length * 4;
 }
 
+// 【厳格ルール】家計に満額の現金がある場合のみ利用可能
 function canUseWorkplace(p, wp) {
   if (!p || !wp) return false;
   if (wp.sellable === false && wp.id !== 'burn') return false;
-  const workers = ensureArray(wp.workers);
-  if (workers.length >= wp.capacity) return false;
-  const req = wp.moneyReq || wp.moneyGain || 0;
-  if (req > 0 && G.household < req) return false;
+  if (ensureArray(wp.workers).length >= wp.capacity) return false;
+
+  const moneyRates = {
+    cafe: 5,
+    restaurant: 15,
+    stall: 6,
+    market: 12,
+    supermarket: 18,
+    dept_store: 24,
+    expo: 30
+  };
+  if (moneyRates[wp.id] !== undefined) {
+    if (G.household < moneyRates[wp.id]) return false;
+  }
 
   const dorms = ensureArray(p.buildings).filter(b => b && b.id === 'dormitory').length;
-  const totalW = p.workers + p.newWorkers;
-  if ((wp.id === 'school') && totalW >= (4 + dorms)) return false;
+  const tw = p.workers + p.newWorkers;
+  if (wp.id === 'school' || wp.id === 'high_school') return tw < (4 + dorms);
+  if (wp.id === 'university' || wp.id === 'vocational_school') return tw < (5 + dorms);
+
   const hand = ensureArray(p.hand);
   if (wp.id === 'orchard') return hand.length <= 3;
   if (['stall', 'restaurant'].includes(wp.id)) return hand.length >= 1;
@@ -968,18 +881,11 @@ function canUseWorkplace(p, wp) {
   if (['supermarket', 'auto_plant'].includes(wp.id)) return hand.length >= 3;
   if (wp.id === 'dept_store') return hand.length >= 4;
   if (wp.id === 'expo') return hand.length >= 5;
-  if (wp.id === 'carpenter' || wp.id === 'general_const') {
-    return hand.some(c => c && !c.isGoods && (hand.length - 1 >= c.cost));
-  }
-  if (wp.id === 'const_co') {
-    return hand.some(c => c && !c.isGoods && (hand.length - 1 >= Math.max(0, c.cost - 1)));
-  }
-  if (wp.id === 'settler') {
-    return hand.some(c => c && !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
-  }
+  if (wp.id === 'carpenter' || wp.id === 'general_const') return hand.some(c => c && !c.isGoods && (hand.length - 1 >= c.cost));
+  if (wp.id === 'const_co') return hand.some(c => c && !c.isGoods && (hand.length - 1 >= Math.max(0, c.cost - 1)));
+  if (wp.id === 'settler') return hand.some(c => c && !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
   if (wp.id === 'niko_const') {
-    const builds = hand.filter(c => c && !c.isGoods);
-    const cg = {}; builds.forEach(c => { cg[c.cost] = (cg[c.cost] || 0) + 1; });
+    const cg = {}; hand.filter(c => c && !c.isGoods).forEach(c => cg[c.cost] = (cg[c.cost] || 0) + 1);
     return Object.keys(cg).some(cost => cg[cost] >= 2 && hand.length >= 2 + parseInt(cost, 10));
   }
   return true;
@@ -987,455 +893,812 @@ function canUseWorkplace(p, wp) {
 
 function advanceTurn(st) {
   const players = ensureArray(st.players);
-  const activeRemaining = players.reduce((acc, pl) => acc + (pl ? (pl.workers - pl.placedWorkers) : 0), 0);
-  recordTrace(`手番進行: 残り総労働者=${activeRemaining}`);
-  
-  if (activeRemaining === 0) {
-    endActionPhaseOnline(st);
-    return;
+  if (players.reduce((acc, pl) => acc + (pl ? (pl.workers - pl.placedWorkers) : 0), 0) === 0) {
+    endActionPhaseOnline(st); return;
   }
   st.turnPlayer = (st.turnPlayer + 1) % players.length;
   const nextP = players[st.turnPlayer];
-  recordTrace(`次手番: P${st.turnPlayer} (${nextP ? nextP.name : 'null'})`);
-  if (nextP && nextP.placedWorkers >= nextP.workers) {
-    advanceTurn(st);
-  }
+  if (nextP && nextP.placedWorkers >= nextP.workers) advanceTurn(st);
 }
 
 // ==========================================
-// 人間アクション
-// ==========================================
-function humanClickWorkplace(wpIdx, type, ownerId = null) {
-  try {
-    recordTrace(`人間クリック: wpIdx=${wpIdx}, type=${type}`);
-    if (G.phase !== 'action') return;
-    if (G.turnPlayer !== mySeatIndex) { alert('あなた以外のプレイヤーの手番です！'); return; }
-    const p = G.players[mySeatIndex];
-    if (!p || p.placedWorkers >= p.workers) return;
-
-    let wp = null;
-    if (type === 'public') wp = G.publicWorkplaces[wpIdx];
-    else if (type === 'my') wp = ensureArray(p.buildings)[wpIdx];
-    else if (type === 'sold') wp = G.soldWorkplaces[wpIdx];
-
-    if (!canUseWorkplace(p, wp)) { alert('この職場は現在利用できません。'); return; }
-
-    playWorkerSound();
-
-    executeActionOnline(p, wp, () => {
-      if (!wp.workers) wp.workers = [];
-      wp.workers = ensureArray(wp.workers);
-      wp.workers.push(mySeatIndex);
-      p.placedWorkers++;
-
-      advanceTurn(G);
-      syncStateToFirebase(G);
-      checkAndTriggerCpu();
-    });
-  } catch(err) {
-    displayCrashPanel('humanClickWorkplace エラー', err.stack);
-  }
-}
-
-function executeActionOnline(p, wp, doneCb) {
-  const rnd = G.round;
-
-  if (wp.id === 'mine') {
-    const card = drawCardFromState(G);
-    p.hand.push(card);
-    showCardCutIn(card, "鉱山でカード獲得！");
-    G.logHistory.unshift(`[R${rnd}] ${p.name} が【鉱山】で【${card.name}】を引きました。`);
-    doneCb();
-  } else if (wp.id === 'quarry') {
-    const card = drawCardFromState(G);
-    p.hand.push(card);
-    G.nextStartPlayer = p.id;
-    showCardCutIn(card, "採石場でスタP奪取！");
-    G.logHistory.unshift(`[R${rnd}] 🚩 ${p.name} が【採石場】で【${card.name}】を引き次RスタPへ！`);
-    doneCb();
-  } else if (wp.id === 'school') {
-    p.newWorkers++;
-    playTone(587.33, 'triangle', 0.25, 0.2);
-    G.logHistory.unshift(`[R${rnd}] 🎓 ${p.name} が【学校】で労働者を1名追加雇用。`);
-    doneCb();
-  } else if (wp.id === 'farm') {
-    const g1 = createGoods(); const g2 = createGoods();
-    p.hand.push(g1); p.hand.push(g2);
-    showCardCutIn(g1, "農場で消費財×2獲得！");
-    G.logHistory.unshift(`[R${rnd}] 🌾 ${p.name} が【農場】で消費財2枚を獲得。`);
-    doneCb();
-  } else if (wp.id === 'cafe') {
-    playCoinSound();
-    G.household -= 5; p.money += 5;
-    G.logHistory.unshift(`[R${rnd}] ☕ ${p.name} が【珈琲店】で家計から$5を獲得。`);
-    doneCb();
-  } else if (wp.id === 'burn') {
-    for (let i = 0; i < 5; i++) p.hand.push(createGoods());
-    wp.pendingDiscard = true;
-    showCardCutIn(createGoods(), "焼畑で消費財×5獲得！");
-    G.logHistory.unshift(`[R${rnd}] 🔥 ${p.name} が【焼畑】で消費財5枚を獲得（R終了時破棄）。`);
-    doneCb();
-  } else if (wp.id === 'orchard') {
-    const toDraw = Math.max(0, 4 - p.hand.length);
-    for (let i = 0; i < toDraw; i++) p.hand.push(createGoods());
-    if (toDraw > 0) showCardCutIn(createGoods(), `果樹園で消費財×${toDraw}獲得！`);
-    G.logHistory.unshift(`[R${rnd}] 🍎 ${p.name} が【果樹園】で消費財${toDraw}枚を獲得。`);
-    doneCb();
-  } else if (wp.id === 'plantation') {
-    for (let i = 0; i < 3; i++) p.hand.push(createGoods());
-    showCardCutIn(createGoods(), "大農園で消費財×3獲得！");
-    G.logHistory.unshift(`[R${rnd}] 🌴 ${p.name} が【大農園】で消費財3枚を獲得。`);
-    doneCb();
-  } else if (wp.id === 'steelworks') {
-    playCardSound();
-    for (let i = 0; i < 3; i++) p.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] 🏭 ${p.name} が【製鉄所】でカード3枚を引きました。`);
-    doneCb();
-  } else if (wp.id === 'chem_factory') {
-    playCardSound();
-    const dCount = (p.hand.length === 0) ? 4 : 2;
-    for (let i = 0; i < dCount; i++) p.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] 🧪 ${p.name} が【化学工場】でカード${dCount}枚をドロー。`);
-    doneCb();
-  } else if (wp.id === 'office') {
-    const pool = [];
-    for (let i = 0; i < 5; i++) pool.push(drawCardFromState(G));
-    showCardSelectModal('【設計事務所】獲得するカードを1枚選択', pool, 1, (chosen) => {
-      const picked = pool.splice(chosen[0], 1)[0];
-      p.hand.push(picked);
-      showCardCutIn(picked, "設計事務所で獲得！");
-      pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
-      G.logHistory.unshift(`[R${rnd}] 📐 ${p.name} が【設計事務所】で【${picked.name}】を獲得。`);
-      doneCb();
-    });
-  } else if (wp.id === 'factory' || wp.id === 'auto_plant') {
-    const req = (wp.id === 'factory') ? 2 : 3;
-    const gain = (wp.id === 'factory') ? 4 : 7;
-    showCardSelectModal(`【${wp.name}】捨てる手札を ${req} 枚選択`, p.hand, req, (chosen) => {
-      chosen.sort((a,b) => b-a).forEach(idx => {
-        const c = p.hand.splice(idx, 1)[0];
-        if (c && !c.isGoods) G.discard.push(c);
-      });
-      playCardSound();
-      for (let i = 0; i < gain; i++) p.hand.push(drawCardFromState(G));
-      G.logHistory.unshift(`[R${rnd}] ⚙️ ${p.name} が【${wp.name}】で手札${req}枚を捨て${gain}枚ドロー。`);
-      doneCb();
-    });
-  } else if (['stall', 'market', 'supermarket', 'dept_store', 'expo', 'restaurant'].includes(wp.id)) {
-    const rate = { stall: [1,6], market: [2,12], supermarket: [3,18], dept_store: [4,24], expo: [5,30], restaurant: [1,15] }[wp.id];
-    showCardSelectModal(`【${wp.name}】売却するカードを ${rate[0]} 枚選択（受取: $${rate[1]}）`, p.hand, rate[0], (chosen) => {
-      chosen.sort((a,b) => b-a).forEach(idx => {
-        const c = p.hand.splice(idx, 1)[0];
-        if (c && !c.isGoods) G.discard.push(c);
-      });
-      playCoinSound();
-      G.household -= rate[1]; p.money += rate[1];
-      G.logHistory.unshift(`[R${rnd}] 💰 ${p.name} が【${wp.name}】で手札を売却し家計から$${rate[1]}獲得。`);
-      doneCb();
-    });
-  } else if (wp.id === 'carpenter' || wp.id === 'const_co' || wp.id === 'general_const') {
-    const disc = (wp.id === 'const_co') ? 1 : 0;
-    const buildables = p.hand.filter(c => c && !c.isGoods && (p.hand.length - 1 >= Math.max(0, c.cost - disc)));
-    showCardSelectModal(`【${wp.name}】建設する建物を選択（割引: -${disc}枚）`, buildables, 1, (bSel) => {
-      const target = buildables[bSel[0]];
-      const cost = Math.max(0, target.cost - disc);
-      const handWithout = p.hand.filter(c => c !== target);
-      if (cost === 0) {
-        playBuildSound();
-        p.hand.splice(p.hand.indexOf(target), 1);
-        p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
-        showCardCutIn(target, "BUILD COMPLETE!");
-        if (wp.id === 'general_const') { p.hand.push(drawCardFromState(G)); p.hand.push(drawCardFromState(G)); }
-        G.logHistory.unshift(`[R${rnd}] 🔨 ${p.name} が【${target.name}】を無料建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
-        doneCb();
-      } else {
-        showCardSelectModal(`【${target.name}】のコストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, (cSel) => {
-          playBuildSound();
-          cSel.sort((a,b) => b-a).forEach(idx => {
-            const c = handWithout.splice(idx, 1)[0];
-            p.hand.splice(p.hand.indexOf(c), 1);
-            if (!c.isGoods) G.discard.push(c);
-          });
-          p.hand.splice(p.hand.indexOf(target), 1);
-          p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
-          showCardCutIn(target, "BUILD COMPLETE!");
-          if (wp.id === 'general_const') { p.hand.push(drawCardFromState(G)); p.hand.push(drawCardFromState(G)); }
-          G.logHistory.unshift(`[R${rnd}] 🔨 ${p.name} が【${target.name}】を建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
-          doneCb();
-        });
-      }
-    });
-  } else if (wp.id === 'settler') {
-    const farms = p.hand.filter(c => c && !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
-    showCardSelectModal('【開拓民】無料建設する農園を選択', farms, 1, (bSel) => {
-      playBuildSound();
-      const target = farms[bSel[0]];
-      p.hand.splice(p.hand.indexOf(target), 1);
-      p.buildings.push({ ...target, ownerId: p.id, capacity: 1, workers: [] });
-      showCardCutIn(target, "開拓民で無料建設！");
-      G.logHistory.unshift(`[R${rnd}] 🚜 ${p.name} が【開拓民】で【${target.name}】を無料建設！`);
-      doneCb();
-    });
-  } else if (wp.id === 'niko_const') {
-    const builds = p.hand.filter(c => c && !c.isGoods);
-    showCardSelectModal('【二胡市建設】同じコストの建物を2つ選択', builds, 2, (chosen) => {
-      const b1 = builds[chosen[0]];
-      const b2 = builds[chosen[1]];
-      if (b1.cost !== b2.cost) { alert('2つの建物はコストが同じでなければなりません！'); return; }
-      const cost = b1.cost;
-      const handWithout = p.hand.filter(c => c !== b1 && c !== b2);
-      showCardSelectModal(`コストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, (cSel) => {
-        playBuildSound();
-        cSel.sort((a,b) => b-a).forEach(idx => {
-          const c = handWithout.splice(idx, 1)[0];
-          p.hand.splice(p.hand.indexOf(c), 1);
-          if (!c.isGoods) G.discard.push(c);
-        });
-        p.hand.splice(p.hand.indexOf(b1), 1);
-        p.hand.splice(p.hand.indexOf(b2), 1);
-        p.buildings.push({ ...b1, ownerId: p.id, capacity: 1, workers: [] });
-        p.buildings.push({ ...b2, ownerId: p.id, capacity: 1, workers: [] });
-        showCardCutIn(b1, "二胡市建設で2軒同時建築！");
-        G.logHistory.unshift(`[R${rnd}] 🏗️ ${p.name} が【二胡市建設】で【${b1.name}】と【${b2.name}】を同時建設！`);
-        doneCb();
-      });
-    });
-  } else {
-    doneCb();
-  }
-}
-
-// ==========================================
-// CPU思考ルーチン
+// 6. 最新・超上級AI思考エンジン
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   try {
     if (!cpu) return;
     const rnd = G.round;
-    recordTrace(`cpuTurnAdvanced 開始: P${cpu.id} (${cpu.name})`);
-
     const wagePerWorker = WAGE_MAP[rnd];
-    const upcomingWage = (cpu.workers + cpu.newWorkers) * wagePerWorker;
-    const deficit = upcomingWage - cpu.money;
+    const totalWorkers = cpu.workers + cpu.newWorkers;
+    const upcomingWage = totalWorkers * wagePerWorker;
+    const currentDeficit = Math.max(0, upcomingWage - cpu.money);
+    const handLimit = getHandLimit(cpu);
+    const remTurns = cpu.workers - cpu.placedWorkers;
 
     cpu.buildings = ensureArray(cpu.buildings);
     cpu.hand = ensureArray(cpu.hand);
 
-    const candidates = [];
-    ensureArray(G.publicWorkplaces).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'public', idx: idx }); });
-    ensureArray(cpu.buildings).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'my', idx: idx }); });
-    ensureArray(G.soldWorkplaces).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'sold', idx: idx }); });
+    const startPlayerObj = G.players ? G.players[G.startPlayer] : null;
+    const curStartName = startPlayerObj ? startPlayerObj.name : '不明';
 
-    if (candidates.length === 0) {
+    const candidates = [];
+    ensureArray(G.publicWorkplaces).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'public', idx, score: 0, tag: '最低限の繋ぎ' }); });
+    ensureArray(cpu.buildings).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'my', idx, score: 0, tag: '自前施設利用' }); });
+    ensureArray(G.soldWorkplaces).forEach((w, idx) => { if (canUseWorkplace(cpu, w)) candidates.push({ wp: w, type: 'sold', idx, score: 0, tag: '売却インフラハイジャック' }); });
+
+    if (!candidates.length) {
       cpu.placedWorkers++;
       G.logHistory.unshift(`[R${rnd}] ⚠️ ${cpu.name} は配置可能な職場がなくパスしました。`);
-      advanceTurn(G);
-      syncStateToFirebase(G);
-      checkAndTriggerCpu();
-      return;
+      advanceTurn(G); syncStateToFirebase(G); checkAndTriggerCpu(); return;
     }
 
+    const getExactCashGain = (wpId, handCount) => {
+      const specs = {
+        stall: { cost: 1, rate: 6 },
+        restaurant: { cost: 1, rate: 15 },
+        market: { cost: 2, rate: 12 },
+        supermarket: { cost: 3, rate: 18 },
+        dept_store: { cost: 4, rate: 24 },
+        expo: { cost: 5, rate: 30 },
+        cafe: { cost: 0, rate: 5 }
+      };
+      const sp = specs[wpId];
+      if (!sp || handCount < sp.cost) return 0;
+      // 満額ある時だけ獲得可能
+      return G.household >= sp.rate ? sp.rate : 0;
+    };
+
+    let maxAvailableCashGain = 0;
+    candidates.forEach(c => {
+      const gain = getExactCashGain(c.wp.id, cpu.hand.length);
+      if (gain > maxAvailableCashGain) maxAvailableCashGain = gain;
+    });
+
+    const isBuildWp = (id) => ['carpenter', 'const_co', 'general_const', 'settler', 'niko_const'].includes(id);
+    const isEarlyEngineCard = (id) => ['office', 'factory', 'steelworks', 'farm', 'orchard'].includes(id);
+
+    const getPossibleBuildTargets = () => {
+      return cpu.hand.filter(c => {
+        if (!c || c.isGoods) return false;
+        if (rnd <= 2 && !isEarlyEngineCard(c.id)) return false;
+        return (cpu.hand.length - 1 >= c.cost);
+      });
+    };
+
+    const buildableTargets = getPossibleBuildTargets();
+    let bestBuildTarget = null;
+    let canSolventBuild = false;
+
+    if (buildableTargets.length > 0) {
+      buildableTargets.sort((a,b) => b.vp - a.vp);
+      bestBuildTarget = buildableTargets[0];
+      const minCost = bestBuildTarget.cost;
+      const handAfterBuild = Math.max(0, cpu.hand.length - 1 - minCost);
+      const turnsAfterBuild = remTurns - 1;
+
+      if (cpu.money >= upcomingWage) {
+        canSolventBuild = true;
+      } else if (turnsAfterBuild >= 1 && (cpu.money + maxAvailableCashGain >= upcomingWage) && handAfterBuild >= 1) {
+        canSolventBuild = true;
+      } else if (rnd >= 8 && bestBuildTarget.vp >= 16) {
+        canSolventBuild = true;
+      }
+    }
+
+    const isEvenRound = [2, 4, 6, 8].includes(rnd);
+    let quarryPriorityTier = (rnd === 9) ? "不要（最終Rのため禁止）" : (isEvenRound ? "極めて高い（次R新施設・スタP確保）" : "中");
+
     candidates.forEach(cand => {
-      let score = 10;
       const w = cand.wp;
-      if (!w) return;
+      let score = 0;
+      let tag = "最低限の繋ぎ";
 
-      if (deficit > 0) {
-        if (w.id === 'cafe' && G.household >= 5) score += 180 + Math.min(50, deficit * 15);
-        if (w.id === 'restaurant' && G.household >= 15 && cpu.hand.length >= 1) score += 260 + deficit * 15;
-        if (['stall', 'market', 'supermarket', 'dept_store', 'expo'].includes(w.id)) {
-          const r = { stall: 6, market: 12, supermarket: 18, dept_store: 24, expo: 30 }[w.id];
-          if (G.household >= r) score += 200 + r * 5;
+      // ==========================================
+      // Ⅰ. 絶対禁止手（ハード・ガードレール）
+      // ==========================================
+      if (rnd === 9 && w.id === 'quarry') { cand.score = -999999; return; }
+
+      if (isBuildWp(w.id)) {
+        if (!canSolventBuild || !bestBuildTarget) { cand.score = -999999; return; }
+        if (rnd <= 2 && !isEarlyEngineCard(bestBuildTarget.id)) { cand.score = -999999; return; }
+      }
+
+      if (cpu.hand.length >= handLimit && ['mine', 'quarry', 'farm', 'plantation', 'steelworks', 'chem_factory', 'burn'].includes(w.id)) {
+        cand.score = -999999; return;
+      }
+      if (w.id === 'orchard' && cpu.hand.length >= 4) { cand.score = -999999; return; }
+
+      if (rnd >= 7 && ['school', 'high_school', 'university'].includes(w.id)) { cand.score = -999999; return; }
+      if (rnd >= 8 && ['vocational_school'].includes(w.id)) { cand.score = -999999; return; }
+
+      if (rnd === 9 && cpu.money >= upcomingWage && ['mine', 'quarry'].includes(w.id)) {
+        cand.score = -999999; return;
+      }
+
+      if (w.id === 'mine' && cpu.hand.length >= 2) {
+        cand.score = -999999; return;
+      }
+
+      // ==========================================
+      // Ⅱ. スコアリング（上から優先）
+      // ==========================================
+
+      // 【1位】偶数ラウンド（R2, R4, R6, R8）の採石場予約
+      if (w.id === 'quarry' && isEvenRound && rnd < 9 && remTurns <= 2) {
+        score = 850000;
+        tag = `【次ラウンド初手予約（採石場）】次Rの新設換金所・インフラを初手で独占するためスタP奪取。`;
+      }
+
+      // 【2位】超強力ドロー施設のハイジャック（手札3枚以下時）
+      else if (cpu.hand.length <= 3 && ['auto_plant', 'chem_factory', 'steelworks'].includes(w.id)) {
+        score = 800000 + (w.id === 'auto_plant' ? 30000 : 10000);
+        tag = `【売却インフラのハイジャック】盤面に解放された最強ドロー施設（${w.name}）を独占。`;
+      }
+
+      // 【3位】給料換金 または 終盤の現金得点化（満額受取可能時のみ）
+      else if (['expo', 'dept_store', 'supermarket', 'market', 'restaurant', 'stall', 'cafe'].includes(w.id)) {
+        const gain = getExactCashGain(w.id, cpu.hand.length);
+        if (gain > 0) {
+          if (currentDeficit > 0) {
+            score = 750000 + gain * 200;
+            tag = `【急務：給料換金】家計（$${G.household}）から満額$${gain}を一撃回収して給料を確保。`;
+          } else if (rnd >= 8) {
+            score = 720000 + gain * 150;
+            tag = `【終盤の資金VP化】上位換金所で満額$${gain}を獲得し最終得点を底上げ。`;
+          } else {
+            score = 250000 + gain * 50;
+            tag = `【計画換金】家計から満額$${gain}を回収。`;
+          }
+        } else {
+          cand.score = -999999; return;
         }
       }
 
-      if (w.id === 'school') {
-        const dorms = ensureArray(cpu.buildings).filter(b => b && b.id === 'dormitory').length;
-        if (cpu.workers + cpu.newWorkers < 4 + dorms) {
-          if (rnd <= 4) score += 230 - rnd * 20;
-          else if (rnd <= 6) score += 90;
+      // 【4位】建物の計画建設（R9なら最優先）
+      else if (isBuildWp(w.id) && canSolventBuild && bestBuildTarget) {
+        const discBonus = (w.id === 'general_const' || w.id === 'const_co') ? 30000 : 0;
+        if (rnd === 9) {
+          score = 900000 + bestBuildTarget.vp * 200 + discBonus;
+          tag = `【最終Rの最高打点建設】手札の【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を着工してVP確定。`;
+        } else if (rnd >= 7) {
+          score = 730000 + bestBuildTarget.vp * 200 + discBonus;
+          tag = `【終盤の高VP大型建設】勝利決定打となる【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を建設。`;
+        } else if (rnd <= 3 && isEarlyEngineCard(bestBuildTarget.id)) {
+          score = 650000 + bestBuildTarget.vp * 100 + discBonus;
+          tag = `【序盤エンジン建設】基盤施設【${bestBuildTarget.name}】を着工。`;
+        } else {
+          score = 500000 + bestBuildTarget.vp * 100 + discBonus;
+          tag = `【中型建物建設】有効施設【${bestBuildTarget.name}】を建設。`;
         }
       }
 
-      if (['carpenter', 'const_co', 'general_const', 'settler', 'niko_const'].includes(w.id)) {
-        const buildables = cpu.hand.filter(c => c && !c.isGoods);
-        if (buildables.length > 0) {
-          const bestVP = Math.max(...buildables.map(c => c.vp));
-          score += 120 + bestVP * 5;
-          if (w.id === 'general_const') score += 40;
-          if (w.id === 'const_co') score += 25;
-          if (w.id === 'settler') score += 60;
+      // 【5位】序盤・中盤の増員
+      else if (rnd <= 2 && w.id === 'school') {
+        score = 620000;
+        tag = `【序盤の最速増員】労働者を3人に増やし手番数を拡大。`;
+      } else if (rnd >= 4 && rnd <= 6 && ['high_school', 'university'].includes(w.id)) {
+        if (cpu.hand.length >= 2 || cpu.money >= upcomingWage) {
+          score = 600000;
+          tag = `【中盤の積極増員】手番数優位を確立するため雇用。`;
         }
       }
 
-      if (['factory', 'auto_plant'].includes(w.id)) {
-        const discCount = (w.id === 'factory') ? 2 : 3;
-        const lowCards = cpu.hand.filter(c => c && (c.isGoods || c.vp <= 8));
-        if (lowCards.length >= discCount) score += 150 + (w.id === 'auto_plant' ? 40 : 0);
+      // 【6位】手札・燃料補給（家計0時の最優先手）
+      else if (['factory', 'auto_plant'].includes(w.id) && cpu.hand.length >= 2 && cpu.hand.length <= 4) {
+        score = 550000;
+        tag = `【手札回転】手札を捨てて山札から強力カードを引き込む。`;
+      } else if (cpu.hand.length <= 2 && ['office', 'orchard', 'farm', 'plantation'].includes(w.id)) {
+        score = 480000;
+        tag = `【燃料補給】換金・建設用の手札・消費財を補充。`;
       }
-      if (w.id === 'farm' || w.id === 'plantation') score += 110 - cpu.hand.length * 8;
-      if (w.id === 'burn' && rnd <= 7) score += 120 - cpu.hand.length * 8;
-      if (w.id === 'orchard' && cpu.hand.length <= 2) score += 130;
-      if (w.id === 'office') score += 140;
-      if (w.id === 'steelworks') score += 130;
-      if (w.id === 'chem_factory') score += (cpu.hand.length === 0) ? 170 : 100;
 
-      if (w.id === 'quarry') {
-        score += 70;
-        if (G.startPlayer !== cpu.id && [3, 5, 7].includes(rnd)) score += 60;
+      // 【7位】奇数ラウンドの採石場
+      else if (w.id === 'quarry' && rnd < 9 && cpu.hand.length < handLimit) {
+        score = 350000;
+        tag = `【状況打開の採石場】次ラウンドの先手を取りつつ1ドロー。`;
       }
-      if (w.id === 'mine') score += 40;
+
+      // 【8位】フォールバック（手札が本当に0〜1枚のときのみ鉱山）
+      else {
+        if (w.id === 'mine') {
+          score = (cpu.hand.length === 0 ? 1000 : 10);
+          tag = `【最低限の繋ぎ】手札枯渇のため鉱山で1枚補充。`;
+        } else {
+          score = 50;
+          tag = `【最低限の繋ぎ】空き職場を利用。`;
+        }
+      }
 
       cand.score = score;
+      cand.strategyTag = tag;
     });
 
     candidates.sort((a,b) => b.score - a.score);
-    const best = candidates[0];
-    const wp = best.wp;
+    const valids = candidates.filter(c => c.score > -900000);
+    const bestCand = valids.length ? valids[0] : candidates[0];
+    const chosen = bestCand.wp;
 
     playWorkerSound();
-
-    if (!wp.workers) wp.workers = [];
-    wp.workers.push(cpu.id);
+    flashWorkplaceCard(chosen.name);
+    if (!chosen.workers) chosen.workers = [];
+    chosen.workers.push(cpu.id);
     cpu.placedWorkers++;
 
-    executeCpuActionOnline(cpu, wp);
+    const aiLog = `【盤面・財務】手持ち: $${cpu.money} / 必要給料: $${upcomingWage} / 家計残高: $${G.household} / 手札: ${cpu.hand.length}枚\n【スタP状況】現在スタP: ${curStartName} / 採石場狙い度: ${quarryPriorityTier}\n【思考】${bestCand.strategyTag}`;
+    recordTrace(`超上級AI (${cpu.name}) 決定: ${chosen.name} [Score:${bestCand.score}]\n${aiLog}`);
+
+    applyActionEffect(cpu, chosen, true, () => {
+      advanceTurn(G);
+      syncStateToFirebase(G);
+      checkAndTriggerCpu();
+    }, null, aiLog);
+
+  } catch(err) { displayCrashPanel('cpuTurnAdvanced エラー: ' + err.message, err.stack); }
+}
+window.cpuTurnAdvanced = cpuTurnAdvanced;
+
+function cpuHandleWageSell(cpu) {
+  const rnd = G.round;
+  const due = (cpu.workers + cpu.newWorkers) * WAGE_MAP[rnd];
+  
+  if (cpu.money < due) {
+    const sellables = ensureArray(cpu.buildings).filter(b => b && b.sellable !== false);
+    if (sellables.length > 0) {
+      sellables.sort((a, b) => a.vp - b.vp);
+      const target = sellables[0];
+      cpu.buildings.splice(cpu.buildings.indexOf(target), 1);
+      cpu.money += target.vp;
+      G.soldWorkplaces.push({ ...target, capacity: 1, workers: [] });
+      spawnCoinParticles(document.getElementById('hud-treasury-box'), document.querySelectorAll('.player-box')[cpu.id], 8, null, cpu.id);
+      G.logHistory.unshift(`[R${G.round}] 🏢 ${cpu.name} は給料確保のため【${target.name}】を売却（価値 +$${target.vp}、現在資金: $${cpu.money}/必要: $${due}）。`);
+      playCoinSound();
+    }
+  }
+
+  proceedPhaseOnline(G);
+  checkAndTriggerCpu();
+}
+window.cpuHandleWageSell = cpuHandleWageSell;
+
+function cpuHandleHandDiscard(cpu) {
+  const limit = getHandLimit(cpu);
+  const excess = cpu.hand.length - limit;
+  cpu.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+  for (let i = 0; i < excess; i++) {
+    const c = cpu.hand.shift();
+    if (c && !c.isGoods) G.discard.push(c);
+  }
+  cpu.discardSettled = true;
+  G.logHistory.unshift(`[R${G.round}] 🎴 ${cpu.name} が上限超過の手札 ${excess} 枚を捨てました。`);
+  proceedPhaseOnline(G);
+  checkAndTriggerCpu();
+}
+window.cpuHandleHandDiscard = cpuHandleHandDiscard;
+
+function checkAndTriggerCpu() {
+  if (!G) return;
+  const currentP = G.players ? G.players[G.turnPlayer] : null;
+  if (!currentP || currentP.isHuman) return;
+
+  const firstHuman = G.players.find(p => p && p.isHuman);
+  if (!firstHuman || firstHuman.id !== mySeatIndex) return;
+
+  if (cpuTimerId) clearTimeout(cpuTimerId);
+  cpuTimerId = setTimeout(() => {
+    cpuTimerId = null;
+    const p = G.players ? G.players[G.turnPlayer] : null;
+    if (!p || p.isHuman) return;
+    if (G.phase === 'action') cpuTurnAdvanced(p);
+    else if (G.phase === 'wage_sell') cpuHandleWageSell(p);
+    else if (G.phase === 'hand_discard') cpuHandleHandDiscard(p);
+  }, G.speed || 1800);
+}
+window.checkAndTriggerCpu = checkAndTriggerCpu;
+
+function convertPlayerToCpu(pIdx) {
+  if (!currentRoomId || !db || !G.players[pIdx]) return;
+  const p = G.players[pIdx];
+  if (!confirm(`「${p.name}」をCPUに切り替えますか？\n（離脱・切断時の代行操作を行います）`)) return;
+
+  p.isHuman = false;
+  p.name = `${p.name} (CPU)`;
+
+  db.ref(`rooms/${currentRoomId}/slots/${pIdx}`).update({ type: 'cpu', name: p.name });
+  G.logHistory.unshift(`[R${G.round}] 🤖 ${p.name} がCPU代行に切り替わりました。`);
+  syncStateToFirebase(G);
+
+  if (G.turnPlayer === pIdx) checkAndTriggerCpu();
+}
+
+function closeAndDestroyRoom() {
+  if (!currentRoomId) return;
+  if (!confirm(`部屋「${currentRoomId}」を完全に閉じて解散しますか？`)) return;
+  if (!db) { location.reload(); return; }
+  db.ref('rooms/' + currentRoomId).remove().then(() => {
+    alert(`部屋「${currentRoomId}」を解散しました。`);
+    location.reload();
+  });
+}
+
+function joinOrCreateRoom() {
+  initAudio();
+  if (!db) { alert("Firebase初期化エラー。ネットワークを確認してください。"); return; }
+  const rId = document.getElementById('room-id-input').value.trim();
+  if (!rId) { alert('部屋番号を入力してください。'); return; }
+  currentRoomId = rId;
+  localStorage.setItem('ne_room_id', currentRoomId);
+  document.getElementById('current-room-text').innerText = rId;
+  document.getElementById('room-lobby').style.display = 'flex';
+
+  const roomRef = db.ref('rooms/' + currentRoomId);
+  roomRef.on('value', snap => {
+    const data = snap.val();
+    if (!data) {
+      if (hasJoinedRoom) { alert(`部屋が解散されました。`); location.reload(); return; }
+      hasJoinedRoom = true;
+      mySeatIndex = 0;
+      roomRef.set({
+        gameStarted: false,
+        slots: [{ type: 'human', name: myPlayerName, token: myPlayerToken }, { type: 'cpu', name: 'CPU 1', token: '' }, { type: 'cpu', name: 'CPU 2', token: '' }]
+      });
+    } else {
+      hasJoinedRoom = true;
+      const slots = ensureArray(data.slots);
+      const mySlotIdx = slots.findIndex(s => s && s.token === myPlayerToken);
+      mySeatIndex = mySlotIdx !== -1 ? mySlotIdx : null;
+      renderLobbySlots(data);
+
+      if (data.gameStarted && data.state) {
+        document.getElementById('lobby-screen').style.display = 'none';
+        G = sanitizeState(data.state);
+        const curStart = G.players ? G.players[G.startPlayer] : null;
+
+        if (G.round !== lastRenderedRound && G.round <= 9) {
+          lastRenderedRound = G.round;
+          showRoundSplash(G.round, curStart ? curStart.name : '');
+        }
+        if (G.phase === 'action' && G.turnPlayer === mySeatIndex && lastTurnPlayer !== mySeatIndex) {
+          showMyTurnToast();
+        }
+        lastTurnPlayer = G.turnPlayer;
+        renderAll();
+        checkAndTriggerCpu();
+      }
+    }
+  });
+}
+
+function renderLobbySlots(data) {
+  const container = document.getElementById('slots-container');
+  container.innerHTML = '';
+  const slots = ensureArray(data.slots);
+  document.getElementById('slot-count-badge').innerText = `現在: ${slots.length} 人対戦`;
+  document.getElementById('btn-add-slot').style.display = slots.length < 4 ? 'block' : 'none';
+
+  slots.forEach((s, idx) => {
+    if (!s) return;
+    const row = document.createElement('div');
+    const isMe = s.token === myPlayerToken;
+    const isOtherHuman = s.type === 'human' && s.token && s.token !== myPlayerToken;
+    row.className = `slot-row ${isMe ? 'my-slot' : ''}`;
+    row.innerHTML = `
+      <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+        <strong style="color:${P_COLORS[idx] || '#aaa'}">P${idx+1}:</strong> 
+        <span style="font-weight:bold;">${s.name}</span>
+        ${isMe ? '<span style="color:#facc15; font-weight:bold;"> ★あなた</span>' : (isOtherHuman ? '<span style="color:#4ade80; font-size:0.75rem;"> (参加中)</span>' : '<span style="font-size:0.75rem; color:#aaa;"> (CPU)</span>')}
+      </div>
+      <div style="display:flex; gap:4px; align-items:center;">
+        ${isMe ? `<button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="renameMe(${idx})">名前変更</button>` : `
+          <button class="lobby-btn" style="padding:4px 8px; font-size:0.75rem;" onclick="takeSlot(${idx})">着席</button>
+          ${!isOtherHuman ? `<button class="lobby-btn sec" style="padding:4px 8px; font-size:0.75rem;" onclick="toggleSlotType(${idx})">${s.type === 'human' ? 'CPU化' : '人間に'}</button>` : ''}
+          ${slots.length > 2 && !isOtherHuman ? `<button class="lobby-btn danger" style="padding:4px 8px; font-size:0.75rem;" onclick="removeSlot(${idx})">🗑️</button>` : ''}
+        `}
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function takeSlot(targetIdx) {
+  initAudio();
+  if (!db || !currentRoomId) return;
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', snap => {
+    let slots = ensureArray(snap.val());
+    if (!slots[targetIdx]) return;
+    slots.forEach((s, i) => { if (s && s.token === myPlayerToken && i !== targetIdx) slots[i] = { type: 'cpu', name: `CPU ${i}`, token: '' }; });
+    slots[targetIdx] = { type: 'human', name: myPlayerName, token: myPlayerToken };
+    mySeatIndex = targetIdx;
+    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
+  });
+}
+
+function renameMe(idx) {
+  const name = prompt('プレイヤー名を入力:', myPlayerName);
+  if (!name) return;
+  myPlayerName = name;
+  localStorage.setItem('ne_player_name', name);
+  if (db && currentRoomId) db.ref(`rooms/${currentRoomId}/slots/${idx}/name`).set(name);
+}
+
+function toggleSlotType(idx) {
+  if (!db || !currentRoomId) return;
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', snap => {
+    let slots = ensureArray(snap.val());
+    if (!slots[idx]) return;
+    const nextType = slots[idx].type === 'human' ? 'cpu' : 'human';
+    slots[idx] = { type: nextType, name: nextType === 'cpu' ? `CPU ${idx}` : `プレイヤー${idx+1}`, token: '' };
+    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
+  });
+}
+
+function addSlot() {
+  if (!db || !currentRoomId) return;
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', snap => {
+    let slots = ensureArray(snap.val());
+    if (slots.length >= 4) return;
+    slots.push({ type: 'cpu', name: `CPU ${slots.length}`, token: '' });
+    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
+  });
+}
+
+function removeSlot(idx) {
+  if (!db || !currentRoomId) return;
+  db.ref(`rooms/${currentRoomId}/slots`).once('value', snap => {
+    let slots = ensureArray(snap.val());
+    if (slots.length <= 2) return;
+    slots.splice(idx, 1);
+    slots.forEach((item, i) => { if (item && item.type === 'cpu') item.name = `CPU ${i}`; });
+    db.ref(`rooms/${currentRoomId}/slots`).set(slots);
+  });
+}
+
+function hostStartGame() {
+  initAudio();
+  if (!currentRoomId || !db) return;
+  const btn = document.getElementById('btn-start-online-game');
+  btn.disabled = true; btn.innerText = '⏳ 開始中...';
+
+  db.ref(`rooms/${currentRoomId}`).once('value', snap => {
+    const rData = snap.val();
+    if (!rData) return;
+    let slots = ensureArray(rData.slots);
+    let mySlotIdx = slots.findIndex(s => s && s.token === myPlayerToken);
+    if (mySlotIdx === -1) {
+      const emptyIdx = slots.findIndex(s => s && s.type !== 'human');
+      mySlotIdx = emptyIdx !== -1 ? emptyIdx : 0;
+      slots[mySlotIdx] = { type: 'human', name: myPlayerName, token: myPlayerToken };
+    }
+    mySeatIndex = mySlotIdx;
+
+    const deck = [];
+    CARD_SPECS.forEach(spec => {
+      for (let i = 0; i < spec.count; i++) deck.push({ ...spec, uid: `${spec.id}_${i}`, isGoods: false });
+    });
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+
+    const numP = slots.length;
+    const startP = Math.floor(Math.random() * numP);
+    const players = slots.map((s, idx) => ({
+      id: idx, name: s.name || `P${idx+1}`, isHuman: s.type === 'human',
+      token: s.token || '', money: 0, workers: 2, newWorkers: 0, placedWorkers: 0,
+      buildings: [], hand: [], debts: 0
+    }));
+
+    for (let order = 0; order < numP; order++) players[(startP + order) % numP].money = 5 + order;
+    players.forEach(p => { for (let i = 0; i < 3; i++) p.hand.push(deck.pop()); });
+
+    const publicWorkplaces = [
+      { id: 'mine', name: '鉱山', desc: 'カードを1枚引く。', capacity: 99, workers: [] },
+      { id: 'carpenter', name: '大工', desc: '建物を1つ建設する。', capacity: 3, workers: [] },
+      { id: 'school', name: '学校', desc: '労働者を1人増やす（今R稼働不可・給料発生）。', capacity: 1, workers: [] },
+      { id: 'quarry', name: '採石場', desc: 'カードを1枚引き、次RのスタPになる。', capacity: 1, workers: [] }
+    ];
+
+    const state = {
+      round: 1, household: 0, deck, discard: [], publicWorkplaces, soldWorkplaces: [],
+      players, startPlayer: startP, turnPlayer: startP, speed: 1800, phase: 'action',
+      logHistory: [`[R1] 🎮 ゲーム開始！ (${numP}人対戦 / 初手スタP: 🚩${players[startP].name})`],
+      historyTimeline: [], isCleaningUp: false
+    };
+
+    db.ref(`rooms/${currentRoomId}`).update({ gameStarted: true, slots, state: JSON.parse(JSON.stringify(state)) });
+  });
+}
+
+function syncStateToFirebase(newG) {
+  if (!db || !currentRoomId) return;
+  G = sanitizeState(newG);
+  db.ref(`rooms/${currentRoomId}/state`).set(JSON.parse(JSON.stringify(G)));
+}
+
+// ==========================================
+// 8. アクション実行
+// ==========================================
+function humanClickWorkplace(wpIdx, type) {
+  if (G.phase !== 'action' || G.turnPlayer !== mySeatIndex) return;
+  const p = G.players[mySeatIndex];
+  if (!p || p.placedWorkers >= p.workers) return;
+
+  let wp = type === 'public' ? G.publicWorkplaces[wpIdx] : (type === 'my' ? p.buildings[wpIdx] : G.soldWorkplaces[wpIdx]);
+  if (!canUseWorkplace(p, wp)) { alert('現在利用できません（条件を満たしていないか、家計に残高が不足しています）。'); return; }
+
+  applyActionEffect(p, wp, false, () => {
+    playWorkerSound();
+    flashWorkplaceCard(wp.name);
+    if (!wp.workers) wp.workers = [];
+    wp.workers.push(mySeatIndex);
+    p.placedWorkers++;
     advanceTurn(G);
     syncStateToFirebase(G);
     checkAndTriggerCpu();
-  } catch(err) {
-    displayCrashPanel('cpuTurnAdvanced エラー', err.stack);
-  }
+  }, () => renderAll());
 }
 
-function executeCpuActionOnline(cpu, wp) {
-  const rnd = G.round;
-  if (!wp) return;
+function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo = "") {
+  const rnd = G.round, pName = player.name;
+  const aiPrefix = isCpu && aiLogInfo ? `${aiLogInfo}\n` : '';
 
   if (wp.id === 'mine') {
-    cpu.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] ${cpu.name} が【鉱山】でカードを引きました。`);
+    const c = drawCardFromState(G);
+    player.hand.push(c);
+    showCardsCutIn([c], "鉱山でカード獲得！", pName, player.id, false);
+    G.logHistory.unshift(`[R${rnd}] ${aiPrefix}➡ ${pName} が【鉱山】でカードを引きました。`);
+    doneCb();
   } else if (wp.id === 'quarry') {
-    cpu.hand.push(drawCardFromState(G));
-    G.nextStartPlayer = cpu.id;
-    G.logHistory.unshift(`[R${rnd}] 🚩 ${cpu.name} が【採石場】でドロー＆スタPを奪取。`);
-  } else if (wp.id === 'school') {
-    cpu.newWorkers++;
-    G.logHistory.unshift(`[R${rnd}] 🎓 ${cpu.name} が【学校】で労働者を雇用。`);
-  } else if (wp.id === 'farm') {
-    cpu.hand.push(createGoods()); cpu.hand.push(createGoods());
-    G.logHistory.unshift(`[R${rnd}] 🌾 ${cpu.name} が【農場】で消費財2枚を獲得。`);
+    const c = drawCardFromState(G);
+    player.hand.push(c);
+    G.nextStartPlayer = player.id;
+    showCardsCutIn([c], "採石場でスタP奪取！", pName, player.id, false);
+    G.logHistory.unshift(`[R${rnd}] 🚩 ${aiPrefix}➡ ${pName} が【採石場】でドロー＆次RスタPへ！`);
+    doneCb();
+  } else if (wp.id === 'school' || wp.id === 'high_school' || wp.id === 'university') {
+    let toAdd = 1;
+    if (wp.id === 'high_school') toAdd = Math.max(0, 4 - (player.workers + player.newWorkers));
+    if (wp.id === 'university') toAdd = Math.max(0, 5 - (player.workers + player.newWorkers));
+    player.newWorkers += toAdd;
+    playTone(587.33, 'triangle', 0.25, 0.2);
+    G.logHistory.unshift(`[R${rnd}] 🎓 ${aiPrefix}➡ ${pName} が【${wp.name}】で労働者を雇用（+${toAdd}名）。`);
+    doneCb();
+  } else if (wp.id === 'vocational_school') {
+    player.workers += 1;
+    playTone(783.99, 'triangle', 0.35, 0.25);
+    G.logHistory.unshift(`[R${rnd}] 🛠️ ${aiPrefix}➡ ${pName} が【専門学校】で即戦力労働者を雇用（即稼働可能）。`);
+    doneCb();
+  } else if (wp.id === 'farm' || wp.id === 'plantation' || wp.id === 'burn') {
+    const count = wp.id === 'burn' ? 5 : (wp.id === 'plantation' ? 3 : 2);
+    const goods = [];
+    for (let i = 0; i < count; i++) { const g = createGoods(); player.hand.push(g); goods.push(g); }
+    if (wp.id === 'burn') wp.pendingDiscard = true;
+    showCardsCutIn(goods, `${wp.name}で消費財獲得！`, pName, player.id, false);
+    G.logHistory.unshift(`[R${rnd}] 🌾 ${aiPrefix}➡ ${pName} が【${wp.name}】で消費財${count}枚を獲得。`);
+    doneCb();
   } else if (wp.id === 'cafe') {
-    const gain = Math.min(5, G.household);
-    G.household -= gain; cpu.money += gain;
-    G.logHistory.unshift(`[R${rnd}] ☕ ${cpu.name} が【珈琲店】で家計から$${gain}を獲得。`);
-  } else if (wp.id === 'burn') {
-    for (let i = 0; i < 5; i++) cpu.hand.push(createGoods());
-    wp.pendingDiscard = true;
-    G.logHistory.unshift(`[R${rnd}] 🔥 ${cpu.name} が【焼畑】で消費財5枚を獲得。`);
+    // 【厳格判定】家計に$5満額ある時のみ
+    if (G.household < 5) {
+      if (!isCpu) alert('家計に十分な現金（$5）がありません。');
+      if (cancelCb) cancelCb();
+      return;
+    }
+    playCoinSound();
+    G.household -= 5; 
+    player.money += 5;
+    spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[player.id], 8, null, player.id);
+    G.logHistory.unshift(`[R${rnd}] ☕ ${aiPrefix}➡ ${pName} が【珈琲店】で家計から$5を獲得。`);
+    doneCb();
   } else if (wp.id === 'orchard') {
-    const toDraw = Math.max(0, 4 - cpu.hand.length);
-    for (let i = 0; i < toDraw; i++) cpu.hand.push(createGoods());
-    G.logHistory.unshift(`[R${rnd}] 🍎 ${cpu.name} が【果樹園】で消費財${toDraw}枚を獲得。`);
-  } else if (wp.id === 'plantation') {
-    for (let i = 0; i < 3; i++) cpu.hand.push(createGoods());
-    G.logHistory.unshift(`[R${rnd}] 🌴 ${cpu.name} が【大農園】で消費財3枚を獲得。`);
-  } else if (wp.id === 'steelworks') {
-    for (let i = 0; i < 3; i++) cpu.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] 🏭 ${cpu.name} が【製鉄所】でカード3枚を引きました。`);
-  } else if (wp.id === 'chem_factory') {
-    const dCount = (cpu.hand.length === 0) ? 4 : 2;
-    for (let i = 0; i < dCount; i++) cpu.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] 🧪 ${cpu.name} が【化学工場】でカード${dCount}枚を獲得。`);
+    const toDraw = Math.max(0, 4 - player.hand.length);
+    const goods = [];
+    for (let i = 0; i < toDraw; i++) { const g = createGoods(); player.hand.push(g); goods.push(g); }
+    if (toDraw) showCardsCutIn(goods, `果樹園で消費財×${toDraw}獲得！`, pName, player.id, false);
+    G.logHistory.unshift(`[R${rnd}] 🍎 ${aiPrefix}➡ ${pName} が【果樹園】で消費財${toDraw}枚を獲得。`);
+    doneCb();
+  } else if (wp.id === 'steelworks' || wp.id === 'chem_factory') {
+    const count = wp.id === 'steelworks' ? 3 : (player.hand.length === 0 ? 4 : 2);
+    const drawn = [];
+    for (let i = 0; i < count; i++) drawn.push(drawCardFromState(G));
+    player.hand.push(...drawn);
+    showCardsCutIn(drawn, `${wp.name}で${count}枚ドロー！`, pName, player.id, false);
+    G.logHistory.unshift(`[R${rnd}] 🏭 ${aiPrefix}➡ ${pName} が【${wp.name}】でカード${count}枚を獲得。`);
+    doneCb();
   } else if (wp.id === 'office') {
     const pool = [];
     for (let i = 0; i < 5; i++) pool.push(drawCardFromState(G));
-    pool.sort((a,b) => b.vp - a.vp);
-    const picked = pool.shift();
-    cpu.hand.push(picked);
-    pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
-    G.logHistory.unshift(`[R${rnd}] 📐 ${cpu.name} が【設計事務所】で【${picked.name}】を獲得。`);
-  } else if (wp.id === 'factory' || wp.id === 'auto_plant') {
-    const req = (wp.id === 'factory') ? 2 : 3;
-    const gain = (wp.id === 'factory') ? 4 : 7;
-    cpu.hand.sort((a,b) => a.vp - b.vp);
-    for (let i = 0; i < req; i++) {
-      const c = cpu.hand.shift();
-      if (c && !c.isGoods) G.discard.push(c);
+    if (isCpu) {
+      pool.sort((a,b) => b.vp - a.vp);
+      const picked = pool.shift();
+      player.hand.push(picked);
+      showCardsCutIn([picked], "設計事務所で獲得！", pName, player.id, false);
+      pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
+      G.logHistory.unshift(`[R${rnd}] 📐 ${aiPrefix}➡ ${pName} が【設計事務所】でカードを獲得。`);
+      doneCb();
+    } else {
+      showCardSelectModal('【設計事務所】獲得するカードを1枚選択', pool, 1, chosen => {
+        const picked = pool.splice(chosen[0], 1)[0];
+        player.hand.push(picked);
+        showCardsCutIn([picked], "設計事務所で獲得！", pName, player.id, false);
+        pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
+        G.logHistory.unshift(`[R${rnd}] 📐 ${pName} が【設計事務所】で【${picked.name}】を獲得。`);
+        doneCb();
+      }, () => { G.deck.push(...pool); if (cancelCb) cancelCb(); });
     }
-    for (let i = 0; i < gain; i++) cpu.hand.push(drawCardFromState(G));
-    G.logHistory.unshift(`[R${rnd}] ⚙️ ${cpu.name} が【${wp.name}】で${gain}枚ドロー。`);
+  } else if (wp.id === 'factory' || wp.id === 'auto_plant') {
+    const req = wp.id === 'factory' ? 2 : 3, gain = wp.id === 'factory' ? 4 : 7;
+    if (isCpu) {
+      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < req; i++) { const c = player.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
+      const drawn = [];
+      for (let i = 0; i < gain; i++) drawn.push(drawCardFromState(G));
+      player.hand.push(...drawn);
+      showCardsCutIn(drawn, `${wp.name}で${gain}枚ドロー！`, pName, player.id, false);
+      G.logHistory.unshift(`[R${rnd}] ⚙️ ${aiPrefix}➡ ${pName} が【${wp.name}】で手札${req}枚を捨て${gain}枚ドロー。`);
+      doneCb();
+    } else {
+      showCardSelectModal(`【${wp.name}】捨てる手札を ${req} 枚選択`, player.hand, req, chosen => {
+        chosen.sort((a,b) => b-a).forEach(idx => { const c = player.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
+        const drawn = [];
+        for (let i = 0; i < gain; i++) drawn.push(drawCardFromState(G));
+        player.hand.push(...drawn);
+        showCardsCutIn(drawn, `${wp.name}で${gain}枚ドロー！`, pName, player.id, false);
+        G.logHistory.unshift(`[R${rnd}] ⚙️ ${pName} が【${wp.name}】で手札${req}枚を捨て${gain}枚ドロー。`);
+        doneCb();
+      }, cancelCb);
+    }
   } else if (['stall', 'market', 'supermarket', 'dept_store', 'expo', 'restaurant'].includes(wp.id)) {
     const rate = { stall: [1,6], market: [2,12], supermarket: [3,18], dept_store: [4,24], expo: [5,30], restaurant: [1,15] }[wp.id];
-    cpu.hand.sort((a,b) => a.vp - b.vp);
-    for (let i = 0; i < rate[0]; i++) {
-      const c = cpu.hand.shift();
-      if (c && !c.isGoods) G.discard.push(c);
+    const reqMoney = rate[1];
+
+    // 【厳格判定】家計に残高が満額ない場合は獲得不可
+    if (G.household < reqMoney) {
+      if (!isCpu) alert(`家計に十分な現金（$${reqMoney}）がありません。`);
+      if (cancelCb) cancelCb();
+      return;
     }
-    const gain = Math.min(rate[1], G.household);
-    G.household -= gain; cpu.money += gain;
-    G.logHistory.unshift(`[R${rnd}] 💰 ${cpu.name} が【${wp.name}】で手札を売却し家計から$${gain}獲得。`);
+
+    if (isCpu) {
+      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < rate[0]; i++) { const c = player.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
+      G.household -= reqMoney; 
+      player.money += reqMoney;
+      playCoinSound();
+      spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[player.id], 10, null, player.id);
+      G.logHistory.unshift(`[R${rnd}] 💰 ${aiPrefix}➡ ${pName} が【${wp.name}】で手札を売却し家計から$${reqMoney}獲得。`);
+      doneCb();
+    } else {
+      showCardSelectModal(`【${wp.name}】売却するカードを ${rate[0]} 枚選択（受取: $${rate[1]}）`, player.hand, rate[0], chosen => {
+        chosen.sort((a,b) => b-a).forEach(idx => { const c = player.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
+        playCoinSound();
+        G.household -= reqMoney; 
+        player.money += reqMoney;
+        spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[player.id], 10, null, player.id);
+        G.logHistory.unshift(`[R${rnd}] 💰 ${pName} が【${wp.name}】で手札を売却し家計から$${reqMoney}獲得。`);
+        doneCb();
+      }, cancelCb);
+    }
   } else if (wp.id === 'carpenter' || wp.id === 'const_co' || wp.id === 'general_const') {
-    const disc = (wp.id === 'const_co') ? 1 : 0;
-    const buildables = cpu.hand.filter(c => c && !c.isGoods && (cpu.hand.length - 1 >= Math.max(0, c.cost - disc)));
-    if (buildables.length > 0) {
-      buildables.sort((a,b) => b.vp - a.vp);
-      const target = buildables[0];
-      const cost = Math.max(0, target.cost - disc);
-      cpu.hand.splice(cpu.hand.indexOf(target), 1);
-      cpu.hand.sort((a,b) => a.vp - b.vp);
-      for (let i = 0; i < cost; i++) {
-        const c = cpu.hand.shift();
-        if (c && !c.isGoods) G.discard.push(c);
+    const disc = wp.id === 'const_co' ? 1 : 0;
+    const buildables = player.hand.filter(c => !c.isGoods && (player.hand.length - 1 >= Math.max(0, c.cost - disc)));
+    if (isCpu) {
+      let targetList = buildables;
+      if (rnd <= 2) {
+        const engines = buildables.filter(c => ['office', 'factory', 'steelworks', 'farm', 'orchard'].includes(c.id));
+        targetList = engines.length ? engines : [];
       }
-      cpu.buildings.push({ ...target, ownerId: cpu.id, capacity: 1, workers: [] });
-      if (wp.id === 'general_const') { cpu.hand.push(drawCardFromState(G)); cpu.hand.push(drawCardFromState(G)); }
-      G.logHistory.unshift(`[R${rnd}] 🔨 ${cpu.name} が【${target.name}】を建設。`);
+      if (!targetList.length) { doneCb(); return; }
+
+      targetList.sort((a,b) => b.vp - a.vp);
+      const target = targetList[0];
+      const cost = Math.max(0, target.cost - disc);
+      player.hand.splice(player.hand.indexOf(target), 1);
+      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < cost; i++) { const c = player.hand.shift(); if (!c.isGoods) G.discard.push(c); }
+      player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
+      showCardsCutIn([target], "建築完了！", pName, player.id, true);
+      playBuildSound();
+      if (wp.id === 'general_const') player.hand.push(drawCardFromState(G), drawCardFromState(G));
+      G.logHistory.unshift(`[R${rnd}] 🔨 ${aiPrefix}➡ ${pName} が【${target.name}】を建設。`);
+      doneCb();
+    } else {
+      showCardSelectModal(`【${wp.name}】建設する建物を選択（割引: -${disc}枚）`, buildables, 1, bSel => {
+        const target = buildables[bSel[0]];
+        const cost = Math.max(0, target.cost - disc);
+        const handWithout = player.hand.filter(c => c !== target);
+        if (cost === 0) {
+          playBuildSound();
+          player.hand.splice(player.hand.indexOf(target), 1);
+          player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
+          showCardsCutIn([target], "BUILD COMPLETE!", pName, player.id, true);
+          if (wp.id === 'general_const') player.hand.push(drawCardFromState(G), drawCardFromState(G));
+          G.logHistory.unshift(`[R${rnd}] 🔨 ${pName} が【${target.name}】を無料建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
+          doneCb();
+        } else {
+          showCardSelectModal(`【${target.name}】のコストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, cSel => {
+            playBuildSound();
+            cSel.sort((a,b) => b-a).forEach(idx => {
+              const c = handWithout.splice(idx, 1)[0];
+              player.hand.splice(player.hand.indexOf(c), 1);
+              if (!c.isGoods) G.discard.push(c);
+            });
+            player.hand.splice(player.hand.indexOf(target), 1);
+            player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
+            showCardsCutIn([target], "BUILD COMPLETE!", pName, player.id, true);
+            if (wp.id === 'general_const') player.hand.push(drawCardFromState(G), drawCardFromState(G));
+            G.logHistory.unshift(`[R${rnd}] 🔨 ${pName} が【${target.name}】を建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
+            doneCb();
+          }, cancelCb);
+        }
+      }, cancelCb);
     }
   } else if (wp.id === 'settler') {
-    const farms = cpu.hand.filter(c => c && !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
-    if (farms.length > 0) {
+    const farms = player.hand.filter(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
+    if (isCpu) {
       farms.sort((a,b) => b.vp - a.vp);
       const target = farms[0];
-      cpu.hand.splice(cpu.hand.indexOf(target), 1);
-      cpu.buildings.push({ ...target, ownerId: cpu.id, capacity: 1, workers: [] });
-      G.logHistory.unshift(`[R${rnd}] 🚜 ${cpu.name} が【開拓民】で【${target.name}】を無料建設。`);
+      player.hand.splice(player.hand.indexOf(target), 1);
+      player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
+      showCardsCutIn([target], "開拓民で無料建設！", pName, player.id, true);
+      playBuildSound();
+      G.logHistory.unshift(`[R${rnd}] 🚜 ${aiPrefix}➡ ${pName} が【開拓民】で【${target.name}】を無料建設！`);
+      doneCb();
+    } else {
+      showCardSelectModal('【開拓民】無料建設する農園を選択', farms, 1, bSel => {
+        playBuildSound();
+        const target = farms[bSel[0]];
+        player.hand.splice(player.hand.indexOf(target), 1);
+        player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
+        showCardsCutIn([target], "開拓民で無料建設！", pName, player.id, true);
+        G.logHistory.unshift(`[R${rnd}] 🚜 ${pName} が【開拓民】で【${target.name}】を無料建設！`);
+        doneCb();
+      }, cancelCb);
     }
   } else if (wp.id === 'niko_const') {
-    const builds = cpu.hand.filter(c => c && !c.isGoods);
-    const cg = {}; builds.forEach(c => { cg[c.cost] = (cg[c.cost] || 0) + 1; });
-    const validCost = Object.keys(cg).find(cost => cg[cost] >= 2 && cpu.hand.length >= 2 + parseInt(cost, 10));
-    if (validCost !== undefined) {
-      const costNum = parseInt(validCost, 10);
+    const builds = player.hand.filter(c => !c.isGoods);
+    if (isCpu) {
+      const cg = {}; builds.forEach(c => cg[c.cost] = (cg[c.cost] || 0) + 1);
+      const costNum = parseInt(Object.keys(cg).find(c => cg[c] >= 2 && player.hand.length >= 2 + parseInt(c, 10)), 10);
       const pair = builds.filter(c => c.cost === costNum).slice(0, 2);
-      cpu.hand.splice(cpu.hand.indexOf(pair[0]), 1);
-      cpu.hand.splice(cpu.hand.indexOf(pair[1]), 1);
-      cpu.hand.sort((a,b) => a.vp - b.vp);
-      for (let i = 0; i < costNum; i++) {
-        const c = cpu.hand.shift();
-        if (c && !c.isGoods) G.discard.push(c);
-      }
-      cpu.buildings.push({ ...pair[0], ownerId: cpu.id, capacity: 1, workers: [] });
-      cpu.buildings.push({ ...pair[1], ownerId: cpu.id, capacity: 1, workers: [] });
-      G.logHistory.unshift(`[R${rnd}] 🏗️ ${cpu.name} が【二胡市建設】で2軒建設。`);
+      player.hand.splice(player.hand.indexOf(pair[0]), 1);
+      player.hand.splice(player.hand.indexOf(pair[1]), 1);
+      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < costNum; i++) { const c = player.hand.shift(); if (!c.isGoods) G.discard.push(c); }
+      player.buildings.push({ ...pair[0], ownerId: player.id, capacity: 1, workers: [] }, { ...pair[1], ownerId: player.id, capacity: 1, workers: [] });
+      showCardsCutIn(pair, "二胡市建設で2軒同時建築！", pName, player.id, true);
+      playBuildSound();
+      G.logHistory.unshift(`[R${rnd}] 🏗️ ${aiPrefix}➡ ${pName} が【二胡市建設】で2軒建設。`);
+      doneCb();
+    } else {
+      showCardSelectModal('【二胡市建設】同じコストの建物を2つ選択', builds, 2, chosen => {
+        const b1 = builds[chosen[0]], b2 = builds[chosen[1]];
+        if (b1.cost !== b2.cost) { alert('コストが同じ建物を2つ選んでください！'); return; }
+        const cost = b1.cost, handWithout = player.hand.filter(c => c !== b1 && c !== b2);
+        showCardSelectModal(`コストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, cSel => {
+          playBuildSound();
+          cSel.sort((a,b) => b-a).forEach(idx => {
+            const c = handWithout.splice(idx, 1)[0];
+            player.hand.splice(player.hand.indexOf(c), 1);
+            if (!c.isGoods) G.discard.push(c);
+          });
+          player.hand.splice(player.hand.indexOf(b1), 1);
+          player.hand.splice(player.hand.indexOf(b2), 1);
+          player.buildings.push({ ...b1, ownerId: player.id, capacity: 1, workers: [] }, { ...b2, ownerId: player.id, capacity: 1, workers: [] });
+          showCardsCutIn([b1, b2], "二胡市建設で2軒同時建築！", pName, player.id, true);
+          G.logHistory.unshift(`[R${rnd}] 🏗️ ${pName} が【二胡市建設】で【${b1.name}】と【${b2.name}】を同時建設！`);
+          doneCb();
+        }, cancelCb);
+      }, cancelCb);
     }
-  }
+  } else { doneCb(); }
 }
 
 // ==========================================
-// 給料・手札整理・破棄フェーズ（完全手動対応）
+// 9. 給料・破棄・終了集計
 // ==========================================
 function endActionPhaseOnline(st) {
-  recordTrace(`endActionPhaseOnline 開始: R${st.round}`);
   st.phase = 'wage';
   st.logHistory.unshift(`[R${st.round}] --- 💼 給料支払いフェーズ ---`);
-
-  // 給料処理フラグの初期化
-  ensureArray(st.players).forEach(p => {
-    delete p.wageSettled;
-    delete p.discardSettled;
-  });
-
+  ensureArray(st.players).forEach(p => { delete p.wageSettled; delete p.discardSettled; });
   proceedPhaseOnline(st);
 }
 
@@ -1444,31 +1707,33 @@ function checkNextWagePlayer(st) {
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
     if (!p || p.wageSettled) continue;
-
     const due = (p.workers + p.newWorkers) * WAGE_MAP[st.round];
+    
     if (p.money >= due) {
       p.money -= due;
       st.household += due;
       p.workers += p.newWorkers;
       p.newWorkers = 0;
       p.wageSettled = true;
+      const pBox = document.querySelectorAll('.player-box')[p.id];
+      spawnCoinParticles(pBox, document.getElementById('hud-household-box'), 7, p.id, null);
       st.logHistory.unshift(`[R${st.round}] 💵 ${p.name} が給料 $${due} を完納。`);
     } else {
       const sellables = ensureArray(p.buildings).filter(b => b && b.sellable !== false);
-      if (sellables.length === 0) {
-        const paid = p.money;
+      if (sellables.length > 0) {
+        st.phase = 'wage_sell';
+        st.turnPlayer = p.id;
+        return true;
+      } else {
+        const unpaid = due - p.money;
+        st.household += p.money;
         p.money = 0;
-        st.household += paid;
-        const unpaid = due - paid;
         p.debts += unpaid;
         p.workers += p.newWorkers;
         p.newWorkers = 0;
         p.wageSettled = true;
-        st.logHistory.unshift(`[R${st.round}] ⚠️ ${p.name} は資金不足で $${unpaid} の負債（-${unpaid * 10}点）。`);
-      } else {
-        st.phase = 'wage_sell';
-        st.turnPlayer = p.id;
-        return true; // 売却待ち
+        st.logHistory.unshift(`[R${st.round}] ⚠️ ${p.name} は資金不足で $${unpaid} の負債（-${unpaid * 3}点）。`);
+        st.lastNotice = { type: 'debt', playerName: p.name, unpaidCount: unpaid, penaltyVp: unpaid * 3, ts: Date.now() };
       }
     }
   }
@@ -1480,15 +1745,10 @@ function checkNextDiscardPlayer(st) {
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
     if (!p || p.discardSettled) continue;
-
-    const limit = getHandLimit(p);
-    const hand = ensureArray(p.hand);
-    if (hand.length <= limit) {
+    if (ensureArray(p.hand).length <= getHandLimit(p)) {
       p.discardSettled = true;
     } else {
-      st.phase = 'hand_discard';
-      st.turnPlayer = p.id;
-      return true; // 破棄待ち
+      st.phase = 'hand_discard'; st.turnPlayer = p.id; return true;
     }
   }
   return false;
@@ -1496,57 +1756,22 @@ function checkNextDiscardPlayer(st) {
 
 function proceedPhaseOnline(st) {
   if (st.phase === 'wage' || st.phase === 'wage_sell') {
-    const waiting = checkNextWagePlayer(st);
-    if (waiting) {
+    if (checkNextWagePlayer(st)) {
       syncStateToFirebase(st);
       return;
     }
     st.phase = 'hand_discard';
   }
-
   if (st.phase === 'hand_discard') {
-    const waiting = checkNextDiscardPlayer(st);
-    if (waiting) {
+    if (checkNextDiscardPlayer(st)) {
       syncStateToFirebase(st);
       return;
     }
   }
-
   finalizeRoundCleanup(st);
   syncStateToFirebase(st);
 }
 
-// CPUの自動売却処理
-function cpuHandleWageSell(cpu) {
-  const sellables = ensureArray(cpu.buildings).filter(b => b && b.sellable !== false);
-  sellables.sort((a,b) => a.vp - b.vp);
-  const target = sellables[0];
-  if (target) {
-    cpu.buildings.splice(cpu.buildings.indexOf(target), 1);
-    cpu.money += target.cost;
-    G.soldWorkplaces.push({ ...target, capacity: 1, workers: [] });
-    G.logHistory.unshift(`[R${G.round}] 🏢 ${cpu.name} は給料確保のため【${target.name}】を売却（+$${target.cost}）。`);
-  }
-  proceedPhaseOnline(G);
-  checkAndTriggerCpu();
-}
-
-// CPUの自動手札破棄処理
-function cpuHandleHandDiscard(cpu) {
-  const limit = getHandLimit(cpu);
-  const excess = cpu.hand.length - limit;
-  cpu.hand.sort((a,b) => a.vp - b.vp);
-  for (let i = 0; i < excess; i++) {
-    const c = cpu.hand.shift();
-    if (c && !c.isGoods) G.discard.push(c);
-  }
-  cpu.discardSettled = true;
-  G.logHistory.unshift(`[R${G.round}] 🎴 ${cpu.name} が上限超過の手札 ${excess} 枚を捨てました。`);
-  proceedPhaseOnline(G);
-  checkAndTriggerCpu();
-}
-
-// 人間の手動売却処理
 function humanSellBuilding(bIdx) {
   const p = G.players[mySeatIndex];
   if (!p) return;
@@ -1555,13 +1780,16 @@ function humanSellBuilding(bIdx) {
   if (!target) return;
 
   p.buildings.splice(p.buildings.indexOf(target), 1);
-  p.money += target.cost;
+  p.money += target.vp;
   G.soldWorkplaces.push({ ...target, capacity: 1, workers: [] });
-  G.logHistory.unshift(`[R${G.round}] 🏢 ${p.name} が給料確保のため【${target.name}】を売却（公共化 / +$${target.cost}）。`);
+  
+  const due = (p.workers + p.newWorkers) * WAGE_MAP[G.round];
+  spawnCoinParticles(document.getElementById('hud-treasury-box'), document.querySelectorAll('.player-box')[p.id], 8, null, p.id);
+  G.logHistory.unshift(`[R${G.round}] 🏢 ${p.name} が給料確保のため【${target.name}】を売却（公共化 / 価値 +$${target.vp}、現在資金: $${p.money}/必要: $${due}）。`);
   playCoinSound();
 
-  const modalLayer = document.getElementById('modal-layer');
-  modalLayer.innerHTML = '';
+  document.getElementById('modal-layer').innerHTML = '';
+  activePhaseModal = null;
 
   proceedPhaseOnline(G);
   renderAll();
@@ -1569,17 +1797,19 @@ function humanSellBuilding(bIdx) {
 }
 
 function finalizeRoundCleanup(st) {
-  recordTrace(`finalizeRoundCleanup 開始: R${st.round}`);
-
-  ensureArray(st.players).forEach(p => {
-    delete p.wageSettled;
-    delete p.discardSettled;
-  });
-
+  ensureArray(st.players).forEach(p => { delete p.wageSettled; delete p.discardSettled; });
   st.publicWorkplaces = ensureArray(st.publicWorkplaces).filter(w => w && w.id !== 'burn');
   st.soldWorkplaces = ensureArray(st.soldWorkplaces).filter(w => w && w.id !== 'burn');
-  st.players.forEach(p => {
-    p.buildings = ensureArray(p.buildings).filter(b => b && b.id !== 'burn');
+  st.players.forEach(p => { p.buildings = ensureArray(p.buildings).filter(b => b && b.id !== 'burn'); });
+
+  st.historyTimeline = ensureArray(st.historyTimeline);
+  st.historyTimeline.push({
+    round: st.round, household: st.household,
+    players: st.players.map(pl => {
+      let bldVp = 0;
+      ensureArray(pl.buildings).forEach(b => { if (b) bldVp += b.vp; });
+      return { id: pl.id, name: pl.name, money: pl.money, totalEst: pl.money + bldVp - (pl.debts * 3) };
+    })
   });
 
   st.round++;
@@ -1596,95 +1826,152 @@ function finalizeRoundCleanup(st) {
     st.turnPlayer = st.startPlayer;
     ensureArray(st.publicWorkplaces).forEach(w => { if (w) w.workers = []; });
     ensureArray(st.soldWorkplaces).forEach(w => { if (w) w.workers = []; });
-    ensureArray(st.players).forEach(p => {
-      if (p) {
-        p.placedWorkers = 0;
-        ensureArray(p.buildings).forEach(b => { if (b) b.workers = []; });
-      }
-    });
+    ensureArray(st.players).forEach(p => { if (p) { p.placedWorkers = 0; ensureArray(p.buildings).forEach(b => { if (b) b.workers = []; }); } });
 
-    if (st.round === 2) st.publicWorkplaces.push({ id: 'stall', name: '露店', desc: '手札1枚→$6', capacity: 99, moneyReq: 6, workers: [] });
-    if (st.round === 3) st.publicWorkplaces.push({ id: 'market', name: '市場', desc: '手札2枚→$12', capacity: 99, moneyReq: 12, workers: [] });
-    if (st.round === 5) st.publicWorkplaces.push({ id: 'supermarket', name: 'スーパー', desc: '手札3枚→$18', capacity: 99, moneyReq: 18, workers: [] });
-    if (st.round === 7) st.publicWorkplaces.push({ id: 'dept_store', name: '百貨店', desc: '手札4枚→$24', capacity: 99, moneyReq: 24, workers: [] });
-    if (st.round === 9) st.publicWorkplaces.push({ id: 'expo', name: '万博', desc: '手札5枚→$30', capacity: 99, moneyReq: 30, workers: [] });
+    if (st.round === 2) st.publicWorkplaces.push({ id: 'stall', name: '露店', desc: '手札1枚→$6', capacity: 99, workers: [] });
+    if (st.round === 3) st.publicWorkplaces.push({ id: 'market', name: '市場', desc: '手札2枚→$12', capacity: 99, workers: [] });
+    if (st.round === 4) st.publicWorkplaces.push({ id: 'high_school', name: '高等学校', desc: '労働者を4人に増やす（研修中）。', capacity: 1, workers: [] });
+    if (st.round === 5) st.publicWorkplaces.push({ id: 'supermarket', name: 'スーパー', desc: '手札3枚→$18', capacity: 99, workers: [] });
+    if (st.round === 6) st.publicWorkplaces.push({ id: 'university', name: '大学', desc: '労働者を5人に増やす（研修中）。', capacity: 1, workers: [] });
+    if (st.round === 7) st.publicWorkplaces.push({ id: 'dept_store', name: '百貨店', desc: '手札4枚→$24', capacity: 99, workers: [] });
+    if (st.round === 8) st.publicWorkplaces.push({ id: 'vocational_school', name: '専門学校', desc: '労働者+1人（即稼働可能）。', capacity: 1, workers: [] });
+    if (st.round === 9) st.publicWorkplaces.push({ id: 'expo', name: '万博', desc: '手札5枚→$30', capacity: 99, workers: [] });
   }
 }
 
-// ==========================================
-// 最終スコア集計モーダル
-// ==========================================
 function calculateScores(st) {
   return st.players.map(p => {
-    const cashVP = p.money;
-    let bldVP = 0;
+    let bldVP = 0, bonusVP = 0;
     ensureArray(p.buildings).forEach(b => { if (b) bldVP += b.vp; });
-
-    let bonusVP = 0;
-    const realEstates = ensureArray(p.buildings).filter(b => b && b.id === 'real_estate').length;
-    bonusVP += realEstates * (ensureArray(p.buildings).length * 3);
-
-    const agrCoops = ensureArray(p.buildings).filter(b => b && b.id === 'agr_coop').length;
-    const goodsCount = ensureArray(p.hand).filter(c => c && c.isGoods).length;
-    bonusVP += agrCoops * (goodsCount * 3);
-
-    const laborUnions = ensureArray(p.buildings).filter(b => b && b.id === 'labor_union').length;
-    bonusVP += laborUnions * (p.workers * 6);
-
-    const hqs = ensureArray(p.buildings).filter(b => b && b.id === 'headquarters').length;
-    const unsellables = ensureArray(p.buildings).filter(b => b && b.sellable === false).length;
-    bonusVP += hqs * (unsellables * 6);
-
-    const railways = ensureArray(p.buildings).filter(b => b && b.id === 'railway').length;
-    const factories = ensureArray(p.buildings).filter(b => b && b.tag === '工場').length;
-    bonusVP += railways * (factories * 8);
-
-    const lawFirms = ensureArray(p.buildings).filter(b => b && b.id === 'law_firm').length;
-    const effectiveDebts = Math.max(0, p.debts - lawFirms * 5);
-    const debtPenalty = effectiveDebts * 10;
-
-    const total = cashVP + bldVP + bonusVP - debtPenalty;
-    return { name: p.name, cashVP, bldVP, bonusVP, debtPenalty, total, isMe: (p.id === mySeatIndex) };
+    bonusVP += ensureArray(p.buildings).filter(b => b.id === 'real_estate').length * (ensureArray(p.buildings).length * 3);
+    bonusVP += ensureArray(p.buildings).filter(b => b.id === 'agr_coop').length * (ensureArray(p.hand).filter(c => c.isGoods).length * 3);
+    bonusVP += ensureArray(p.buildings).filter(b => b.id === 'labor_union').length * (p.workers * 6);
+    bonusVP += ensureArray(p.buildings).filter(b => b.id === 'headquarters').length * (ensureArray(p.buildings).filter(b => b.sellable === false).length * 6);
+    bonusVP += ensureArray(p.buildings).filter(b => b.id === 'railway').length * (ensureArray(p.buildings).filter(b => b.tag === '工場').length * 8);
+    const debtPenalty = Math.max(0, p.debts - ensureArray(p.buildings).filter(b => b.id === 'law_firm').length * 5) * 3;
+    return { name: p.name, cashVP: p.money, bldVP, bonusVP, debtPenalty, total: p.money + bldVP + bonusVP - debtPenalty, isMe: p.id === mySeatIndex };
   }).sort((a,b) => b.total - a.total);
 }
 
 function showFinalScoringModal(st) {
   const scores = calculateScores(st);
-  const modalLayer = document.getElementById('modal-layer');
-  modalLayer.innerHTML = `
+  const allLogs = ensureArray(st.logHistory);
+  document.getElementById('modal-layer').innerHTML = `
     <div class="modal-overlay">
       <div class="modal-box">
         <div class="modal-title">🏆 最終結果発表</div>
         <table class="score-table">
-          <thead>
-            <tr><th>順位</th><th>名前</th><th>現金</th><th>建物</th><th>ボーナス</th><th>負債</th><th>合計</th></tr>
-          </thead>
-          <tbody>
-            ${scores.map((s, idx) => `
-              <tr class="${idx === 0 ? 'winner-row' : ''}">
-                <td>${idx === 0 ? '👑 1位' : `${idx+1}位`}</td>
-                <td>${s.name}${s.isMe ? ' (あなた)' : ''}</td>
-                <td>$${s.cashVP}</td>
-                <td>${s.bldVP}</td>
-                <td>+${s.bonusVP}</td>
-                <td style="color:#dc2626;">-${s.debtPenalty}</td>
-                <td><strong>${s.total}</strong></td>
-              </tr>
-            `).join('')}
+          <thead><tr><th>順位</th><th>名前</th><th>現金</th><th>建物</th><th>ボーナス</th><th>負債</th><th>合計</th></tr></thead>
+          <tbody>${scores.map((s, idx) => `
+            <tr class="${idx === 0 ? 'winner-row' : ''}">
+              <td><strong style="color:#0f172a;">${idx === 0 ? '👑 1位' : `${idx+1}位`}</strong></td>
+              <td><strong style="color:#0f172a;">${s.name}${s.isMe ? ' (あなた)' : ''}</strong></td>
+              <td><span style="color:#15803d; font-weight:bold;">$${s.cashVP}</span></td>
+              <td><span style="color:#1e3a8a; font-weight:bold;">${s.bldVP}</span></td>
+              <td><span style="color:#b45309; font-weight:bold;">+${s.bonusVP}</span></td>
+              <td><span style="color:#b91c1c; font-weight:bold;">-${s.debtPenalty}</span></td>
+              <td><strong style="color:#000; font-size:0.95rem;">${s.total}</strong></td>
+            </tr>`).join('')}
           </tbody>
         </table>
-        <div class="modal-btns">
-          <button class="m-btn ok" onclick="closeAndDestroyRoom()">ゲームを終了して部屋を解散</button>
+        <div style="margin-top: 10px; border-top: 1px solid #b5a389; padding-top: 6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-weight:900; font-size:0.85rem; color:#1e293b;">📈 9ラウンド資産推移グラフ</span>
+            <div id="chart-legend" style="display:flex; gap:6px; font-size:0.68rem; font-weight:bold;"></div>
+          </div>
+          <canvas id="timeline-chart" style="width:100%; height:135px; background:#18130e; border-radius:6px; border:1px solid #4a3a2a;"></canvas>
+        </div>
+        <div style="margin-top: 10px; border-top: 1px solid #b5a389; padding-top: 6px; flex: 1; min-height: 0; display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-weight: 900; font-size: 0.85rem; color: #1e293b;">📜 対戦の全記録 (${allLogs.length}件)</span>
+            <button class="lobby-btn sec" style="padding: 3px 8px; font-size: 0.7rem;" onclick="copyGameLog()">📋 ログをコピー</button>
+          </div>
+          <div style="background: #140e0a; color: #ffffff; border-radius: 6px; padding: 6px 8px; overflow-y: auto; font-size: 0.72rem; line-height: 1.4; display: flex; flex-direction: column; gap: 3px; max-height: 110px;">
+            ${allLogs.slice().reverse().map(l => `<div style="border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 2px;">${l}</div>`).join('')}
+          </div>
+        </div>
+        <div class="modal-btns" style="margin-top: 8px;">
+          <button class="m-btn ok" onclick="closeAndDestroyRoom()">ゲームを終了して解散</button>
         </div>
       </div>
     </div>
   `;
+  setTimeout(() => drawTimelineChart(st), 100);
+}
+
+function drawTimelineChart(st) {
+  const canvas = document.getElementById('timeline-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d'), dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+  if (!rect.width) return;
+  canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const timeline = ensureArray(st.historyTimeline);
+  if (timeline.length < 2) return;
+
+  const width = rect.width, height = rect.height, padL = 32, padR = 15, padT = 15, padB = 22;
+  const legendBox = document.getElementById('chart-legend');
+  if (legendBox) {
+    legendBox.innerHTML = st.players.map(p => `
+      <span style="color:${P_COLORS[p.id]}; display:flex; align-items:center; gap:2px;">
+        <span style="display:inline-block; width:8px; height:8px; background:${P_COLORS[p.id]}; border-radius:50%;"></span>${p.name}
+      </span>
+    `).join('') + `<span style="color:#eab308; display:flex; align-items:center; gap:2px;"><span style="display:inline-block; width:8px; height:2px; background:#eab308;"></span> 家計</span>`;
+  }
+
+  let maxVal = 20, minVal = 0;
+  timeline.forEach(snap => {
+    maxVal = Math.max(maxVal, snap.household || 0);
+    ensureArray(snap.players).forEach(pl => { maxVal = Math.max(maxVal, pl.totalEst || 0); minVal = Math.min(minVal, pl.totalEst || 0); });
+  });
+  maxVal = Math.ceil(maxVal * 1.15);
+  const range = (maxVal - minVal) === 0 ? 1 : (maxVal - minVal);
+
+  ctx.strokeStyle = '#2d2218'; ctx.lineWidth = 1;
+  for (let r = 1; r <= 9; r++) {
+    const x = padL + ((r - 1) / 8) * (width - padL - padR);
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, height - padB); ctx.stroke();
+    ctx.fillStyle = '#8c765f'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(`R${r}`, x, height - padB + 13);
+  }
+
+  const zeroY = (height - padB) - ((0 - minVal) / range) * (height - padT - padB);
+  ctx.strokeStyle = '#57412e';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(padL, zeroY);
+  ctx.lineTo(width - padR, zeroY);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  ctx.strokeStyle = '#eab308'; ctx.lineWidth = 1.5; ctx.setLineDash([2, 2]); ctx.beginPath();
+  timeline.forEach((snap, idx) => {
+    const x = padL + (idx / 8) * (width - padL - padR);
+    const y = (height - padB) - (((snap.household || 0) - minVal) / range) * (height - padT - padB);
+    if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  st.players.forEach(p => {
+    ctx.strokeStyle = P_COLORS[p.id] || '#fff'; ctx.fillStyle = P_COLORS[p.id] || '#fff'; ctx.lineWidth = 2.2; ctx.beginPath();
+    timeline.forEach((snap, idx) => {
+      const plData = ensureArray(snap.players).find(item => item.id === p.id) || { totalEst: 5 };
+      const x = padL + (idx / 8) * (width - padL - padR);
+      const y = (height - padB) - (((plData.totalEst || 0) - minVal) / range) * (height - padT - padB);
+      if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    timeline.forEach((snap, idx) => {
+      const plData = ensureArray(snap.players).find(item => item.id === p.id) || { totalEst: 5 };
+      const x = padL + (idx / 8) * (width - padL - padR);
+      const y = (height - padB) - (((plData.totalEst || 0) - minVal) / range) * (height - padT - padB);
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+    });
+  });
 }
 
 // ==========================================
-// レンダリング & 手動モーダル発動
+// 10. UI レンダリング
 // ==========================================
-let activePhaseModal = null;
+let activePhaseModal = null, selectedHandForSim = null;
 
 function renderAll() {
   try {
@@ -1692,192 +1979,181 @@ function renderAll() {
     document.getElementById('hud-wage').innerText = `賃金: $${WAGE_MAP[Math.min(9, G.round)]} / 1人`;
     document.getElementById('hud-household').innerText = `$${G.household}`;
 
-    const pill = document.getElementById('hud-phase-pill');
-    pill.className = 'phase-pill';
-    if (G.phase === 'action') {
-      pill.innerText = '🟢 アクション中';
-    } else if (G.phase === 'wage' || G.phase === 'wage_sell') {
-      pill.classList.add('wage');
-      pill.innerText = '💼 給料支払い中';
-    } else if (G.phase === 'hand_discard') {
-      pill.classList.add('discard');
-      pill.innerText = '🎴 手札整理中';
-    } else {
-      pill.innerText = '🏆 終了';
+    if (G.lastNotice && G.lastNotice.ts && G.lastNotice.ts !== lastProcessedNoticeTs) {
+      lastProcessedNoticeTs = G.lastNotice.ts;
+      if (G.lastNotice.type === 'debt') showDebtCutIn(G.lastNotice.playerName, G.lastNotice.unpaidCount, G.lastNotice.penaltyVp);
     }
 
+    const pill = document.getElementById('hud-phase-pill');
+    pill.className = 'phase-pill' + (G.phase.includes('wage') ? ' wage' : (G.phase.includes('discard') ? ' discard' : ''));
+    pill.innerText = G.phase === 'action' ? '🟢 アクション中' : (G.phase.includes('wage') ? '💼 給料支払い中' : (G.phase.includes('discard') ? '🎴 手札整理中' : '🏆 終了'));
+
+    // モニター
     const mBox = document.getElementById('all-workers-monitor');
     mBox.innerHTML = '';
     (G.players || []).forEach(p => {
       if (!p) return;
-      const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
+      const isTurn = G.phase === 'action' && G.turnPlayer === p.id;
+      const isStart = G.startPlayer === p.id, isNext = G.nextStartPlayer === p.id;
       const box = document.createElement('div');
       box.className = `monitor-p-box ${isTurn ? 'turn-now' : ''}`;
       const left = p.workers - p.placedWorkers;
 
       const spots = [];
-      (G.publicWorkplaces || []).forEach(w => {
-        if (!w) return;
-        const c = ensureArray(w.workers).filter(x => x === p.id).length;
-        for (let i = 0; i < c; i++) spots.push(w.name);
-      });
-      (G.soldWorkplaces || []).forEach(w => {
-        if (!w) return;
-        const c = ensureArray(w.workers).filter(x => x === p.id).length;
-        for (let i = 0; i < c; i++) spots.push(w.name);
-      });
-      (p.buildings || []).forEach(w => {
+      [...(G.publicWorkplaces || []), ...(G.soldWorkplaces || []), ...(p.buildings || [])].forEach(w => {
         if (!w) return;
         const c = ensureArray(w.workers).filter(x => x === p.id).length;
         for (let i = 0; i < c; i++) spots.push(w.name);
       });
 
+      const canTakeover = p.isHuman && p.id !== mySeatIndex;
       box.innerHTML = `
         <div class="monitor-header">
-          <span style="color:${P_COLORS[p.id] || '#aaa'}">${p.name}</span>
+          <div class="monitor-name-group">
+            <span style="color:${P_COLORS[p.id] || '#aaa'}">${p.name}</span>
+            ${isStart ? '<span class="badge-start-player">🚩 スタP</span>' : ''}
+            ${isNext ? '<span class="badge-next-start">次RスタP</span>' : ''}
+            ${canTakeover ? `<button class="btn-cpu-takeover" onclick="convertPlayerToCpu(${p.id})">🤖 CPU化</button>` : ''}
+          </div>
           <span class="monitor-workers-left">残 ${left}/${p.workers}</span>
         </div>
-        <div class="monitor-spots">
-          ${spots.length === 0 ? '<span style="font-size:0.65rem; color:#777;">未配置</span>' : spots.map(s => `<span class="monitor-tag">${s}</span>`).join('')}
-        </div>
+        <div class="monitor-spots">${spots.length ? spots.map(s => `<span class="monitor-tag">${s}</span>`).join('') : '<span style="font-size:0.65rem; color:#777;">未配置</span>'}</div>
       `;
       mBox.appendChild(box);
     });
 
-    const me = (mySeatIndex !== null && G.players) ? G.players[mySeatIndex] : null;
+    // 自分のワーカー
+    const me = mySeatIndex !== null && G.players ? G.players[mySeatIndex] : null;
     if (me) {
       const myLeft = me.workers - me.placedWorkers;
       document.getElementById('my-worker-count-text').innerText = `あと ${myLeft} / ${me.workers} 人`;
       const dots = document.getElementById('my-worker-dots');
       dots.innerHTML = '';
-      for (let i = 0; i < me.workers; i++) {
-        const d = document.createElement('div');
-        d.className = `w-dot ${i < myLeft ? 'active' : 'used'}`;
-        dots.appendChild(d);
-      }
+      for (let i = 0; i < me.workers; i++) dots.innerHTML += getMeepleSvg(P_COLORS[me.id] || '#2563eb', i >= myLeft);
     }
 
-    const turnPlayerObj = (G.players) ? G.players[G.turnPlayer] : null;
-    const isMyTurn = (G.turnPlayer === mySeatIndex);
+    const curP = G.players ? G.players[G.turnPlayer] : null;
+    const isMyTurn = G.turnPlayer === mySeatIndex;
     const bannerEl = document.getElementById('banner-text');
 
-    if (G.phase === 'action') {
-      if (turnPlayerObj) {
-        bannerEl.innerHTML = isMyTurn ? 
-          `<span style="color:#60a5fa;">🔵 あなたの手番です！</span>` : 
-          `${turnPlayerObj.name} の手番中...`;
-      }
+    if (G.phase === 'action' && curP) {
+      const canTakeoverNow = curP.isHuman && curP.id !== mySeatIndex;
+      bannerEl.innerHTML = `
+        <span>${isMyTurn ? '<span style="color:#60a5fa;">🔵 あなたの手番です！</span>' : `${curP.name} の手番中...`}</span>
+        ${canTakeoverNow ? `<button class="btn-cpu-takeover" onclick="convertPlayerToCpu(${curP.id})">応答がない時は 🤖 CPU化</button>` : ''}
+      `;
     } else if (G.phase === 'wage_sell') {
-      bannerEl.innerHTML = isMyTurn ?
-        `<span style="color:#ef4444; font-weight:bold;">⚠️ 給料不足！売却する建物を選んでください</span>` :
-        `${turnPlayerObj ? turnPlayerObj.name : '相手'} が建物売却中...`;
+      bannerEl.innerHTML = isMyTurn ? `<span style="color:#ef4444; font-weight:bold;">⚠️ 給料不足！売却する建物を選んでください</span>` : `${curP ? curP.name : '相手'} が建物売却中...`;
     } else if (G.phase === 'hand_discard') {
-      bannerEl.innerHTML = isMyTurn ?
-        `<span style="color:#38bdf8; font-weight:bold;">🎴 手札上限超過！捨てるカードを選んでください</span>` :
-        `${turnPlayerObj ? turnPlayerObj.name : '相手'} が手札整理中...`;
+      bannerEl.innerHTML = isMyTurn ? `<span style="color:#38bdf8; font-weight:bold;">🎴 手札上限超過！捨てるカードを選んでください</span>` : `${curP ? curP.name : '相手'} が手札整理中...`;
     }
 
+    // 公共職場グリッド
     const pubGrid = document.getElementById('public-grid');
     pubGrid.innerHTML = '';
     (G.publicWorkplaces || []).forEach((w, idx) => {
       if (!w) return;
       const card = document.createElement('div');
       card.className = 'card workplace';
-      const canUse = (G.phase === 'action' && isMyTurn && me && me.placedWorkers < me.workers && canUseWorkplace(me, w));
+      const canUse = G.phase === 'action' && isMyTurn && me && me.placedWorkers < me.workers && canUseWorkplace(me, w);
       card.innerHTML = `
         <div class="card-top"><span class="card-name">${w.name}</span><span class="card-tag">定員${w.capacity >= 90 ? '無制限' : w.capacity}</span></div>
         <div class="card-desc">${w.desc}</div>
-        <div class="worker-row">
-          ${ensureArray(w.workers).map(pId => `<div class="w-token p${pId}">P${pId+1}</div>`).join('')}
-        </div>
+        <div class="worker-row">${ensureArray(w.workers).map(pId => getMeepleSvg(P_COLORS[pId] || '#fff', false, 'board-meeple')).join('')}</div>
         ${canUse ? `<button class="btn-work" onclick="humanClickWorkplace(${idx}, 'public')">労働を配置</button>` : ''}
       `;
       pubGrid.appendChild(card);
     });
 
+    // 自分の建物グリッド
     const myBldGrid = document.getElementById('my-buildings-grid');
     myBldGrid.innerHTML = '';
     if (me && me.buildings) {
       document.getElementById('my-bld-count-info').innerText = `所有: ${me.buildings.length}軒`;
       me.buildings.forEach((b, bIdx) => {
         if (!b) return;
-        const isPassive = (b.sellable === false && b.id !== 'burn');
         const card = document.createElement('div');
-        card.className = `card my-facility ${isPassive ? 'passive' : ''}`;
-        const canUse = (G.phase === 'action' && isMyTurn && me.placedWorkers < me.workers && canUseWorkplace(me, b));
+        card.className = `card my-facility ${b.sellable === false && b.id !== 'burn' ? 'passive' : ''}`;
+        const canUse = G.phase === 'action' && isMyTurn && me && me.placedWorkers < me.workers && canUseWorkplace(me, b);
         card.innerHTML = `
           <div class="card-top"><span class="card-name">${b.name}</span><span class="card-tag">${b.tag}</span></div>
-          <div class="card-sub">Cost: ${b.cost} / VP: ${b.vp}</div>
+          <div class="card-sub">価値: $${b.vp} / VP: ${b.vp}</div>
           <div class="card-desc">${b.desc}</div>
-          <div class="worker-row">
-            ${ensureArray(b.workers).map(pId => `<div class="w-token p${pId}">P${pId+1}</div>`).join('')}
-          </div>
-          ${canUse ? `<button class="btn-work" onclick="humanClickWorkplace(${bIdx}, 'my', ${me.id})">配置</button>` : ''}
+          <div class="worker-row">${ensureArray(b.workers).map(pId => getMeepleSvg(P_COLORS[pId] || '#fff', false, 'board-meeple')).join('')}</div>
+          ${canUse ? `<button class="btn-work" onclick="humanClickWorkplace(${bIdx}, 'my')">配置</button>` : ''}
         `;
         myBldGrid.appendChild(card);
       });
     }
 
+    // 売却された公共職場
     const soldGrid = document.getElementById('sold-public-grid');
     const soldSec = document.getElementById('sold-public-section');
     soldGrid.innerHTML = '';
-    if (G.soldWorkplaces && G.soldWorkplaces.length > 0) {
+    if (G.soldWorkplaces && G.soldWorkplaces.length) {
       soldSec.style.display = 'block';
       G.soldWorkplaces.forEach((w, idx) => {
-        if (!w) return;
         const card = document.createElement('div');
         card.className = 'card sold-facility';
-        const canUse = (G.phase === 'action' && isMyTurn && me && me.placedWorkers < me.workers && canUseWorkplace(me, w));
+        const canUse = G.phase === 'action' && isMyTurn && me && me.placedWorkers < me.workers && canUseWorkplace(me, w);
         card.innerHTML = `
           <div class="card-top"><span class="card-name">${w.name}</span><span class="card-tag">${w.tag}</span></div>
-          <div class="card-sub">元Cost: ${w.cost} / VP: ${w.vp}</div>
+          <div class="card-sub">価値: $${w.vp} / VP: ${w.vp}</div>
           <div class="card-desc">${w.desc}</div>
-          <div class="worker-row">
-            ${ensureArray(w.workers).map(pId => `<div class="w-token p${pId}">P${pId+1}</div>`).join('')}
-          </div>
+          <div class="worker-row">${ensureArray(w.workers).map(pId => getMeepleSvg(P_COLORS[pId] || '#fff', false, 'board-meeple')).join('')}</div>
           ${canUse ? `<button class="btn-work" onclick="humanClickWorkplace(${idx}, 'sold')">労働を配置</button>` : ''}
         `;
         soldGrid.appendChild(card);
       });
-    } else {
-      soldSec.style.display = 'none';
-    }
+    } else { soldSec.style.display = 'none'; }
 
+    // プレイヤー一覧
     const pList = document.getElementById('players-list');
     pList.innerHTML = '';
     (G.players || []).forEach(p => {
       if (!p) return;
-      const isTurn = (G.phase === 'action' && G.turnPlayer === p.id);
+      const isTurn = G.phase === 'action' && G.turnPlayer === p.id;
       const box = document.createElement('div');
       box.className = `player-box p${p.id} ${isTurn ? 'active-turn' : ''}`;
+      const canTakeover = p.isHuman && p.id !== mySeatIndex;
       box.innerHTML = `
         <div class="p-top-row">
-          <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span>${p.name}${p.id === mySeatIndex ? ' (あなた)' : ''}</span>
+            ${G.startPlayer === p.id ? '<span class="badge-start-player">🚩 スタP</span>' : ''}
+            ${canTakeover ? `<button class="btn-cpu-takeover" onclick="convertPlayerToCpu(${p.id})">🤖 CPU化</button>` : ''}
+          </div>
           <span style="color:#15803d; font-weight:900;">$${p.money}</span>
         </div>
         <div class="p-details">
-          <span>労働者: ${p.workers}名</span>
-          <span>手札: ${p.hand ? p.hand.length : 0}枚</span>
+          <span>労働者: ${p.workers}名</span><span>手札: ${p.hand ? p.hand.length : 0}枚</span>
           <span>所有建物: ${p.buildings ? p.buildings.length : 0}軒</span>
           ${p.debts > 0 ? `<span style="color:#dc2626;">負債: ${p.debts}</span>` : ''}
         </div>
-        <div class="p-buildings-list">
-          ${ensureArray(p.buildings).map(b => `<div class="p-b-pill ${(b.workers && b.workers.length > 0) ? 'occupied' : ''}">${b.name} (${b.tag})</div>`).join('')}
-        </div>
+        <div class="p-buildings-list">${ensureArray(p.buildings).map(b => `<div class="p-b-pill ${(b.workers && b.workers.length) ? 'occupied' : ''}">${b.name} (${b.tag})</div>`).join('')}</div>
       `;
       pList.appendChild(box);
     });
 
+    // 手札 ＆ 建築シミュレーター
     const hGrid = document.getElementById('hand-grid');
     hGrid.innerHTML = '';
     if (me && me.hand) {
       document.getElementById('nav-hand-badge').innerText = me.hand.length;
       document.getElementById('hand-heading').innerText = `🎴 あなたの手札 (${me.hand.length}枚)`;
       document.getElementById('hand-limit-badge').innerText = `上限: ${getHandLimit(me)}枚`;
-      me.hand.forEach(c => {
+
+      me.hand.forEach((c, cIdx) => {
         if (!c) return;
         const card = document.createElement('div');
+        const isChosen = (selectedHandForSim === cIdx);
         card.className = `card ${c.isGoods ? 'goods' : ''}`;
+        if (isChosen) {
+          card.style.outline = '3px solid #facc15';
+          card.style.transform = 'translateY(-4px)';
+        }
+        card.style.cursor = 'pointer';
+        card.onclick = () => selectCardForSim(cIdx);
         card.innerHTML = `
           <div class="card-top"><span class="card-name">${c.name}</span><span class="card-tag">${c.tag}</span></div>
           <div class="card-sub">${c.isGoods ? '消費財' : `Cost: ${c.cost} / VP: ${c.vp}`}</div>
@@ -1887,17 +2163,11 @@ function renderAll() {
       });
     }
 
-    const logBox = document.getElementById('log-stream');
-    logBox.innerHTML = ensureArray(G.logHistory).map(l => `<div class="log-line">${l}</div>`).join('');
+    document.getElementById('log-stream').innerHTML = ensureArray(G.logHistory).map(l => `<div class="log-line">${l}</div>`).join('');
 
-    // ==========================================
-    // 人間プレイヤーの手動モーダル判定
-    // ==========================================
     if (G.phase === 'wage_sell' && isMyTurn) {
-      if (activePhaseModal !== 'wage_sell') {
-        activePhaseModal = 'wage_sell';
-        showHumanWageSellModal();
-      }
+      activePhaseModal = 'wage_sell';
+      showHumanWageSellModal();
     } else if (G.phase === 'hand_discard' && isMyTurn) {
       if (activePhaseModal !== 'hand_discard') {
         activePhaseModal = 'hand_discard';
@@ -1909,38 +2179,60 @@ function renderAll() {
         activePhaseModal = null;
       }
     }
-
-  } catch(err) {
-    displayCrashPanel('renderAll エラー', err.stack);
-  }
+  } catch(err) { displayCrashPanel('renderAll エラー: ' + err.message, err.stack); }
 }
 
-// 人間の給料不足・建物売却選択モーダル
+function selectCardForSim(idx) {
+  const me = (mySeatIndex !== null && G.players) ? G.players[mySeatIndex] : null;
+  if (!me || !me.hand || !me.hand[idx]) return;
+  selectedHandForSim = idx;
+
+  const card = me.hand[idx], simBox = document.getElementById('sim-content');
+  if (card.isGoods) {
+    simBox.innerHTML = `【消費財】建物ではないため建設できません。他の建物の建設コストや商店への売却に使用できます。`;
+  } else {
+    const handCount = me.hand.length;
+    const reqNorm = card.cost, canNorm = handCount - 1 >= reqNorm;
+    const reqCo = Math.max(0, card.cost - 1), canCo = handCount - 1 >= reqCo;
+    simBox.innerHTML = `
+      <div style="font-weight:900; color:#fff; margin-bottom:2px;">【${card.name}】（コスト: 手札${card.cost}枚 / 価値: $${card.vp}）</div>
+      <div class="sim-result-row">
+        <span>🔨 大工で建設: </span><span class="${canNorm ? 'sim-tag-ok' : 'sim-tag-ng'}">${canNorm ? `建設可能 (手札残り ${handCount - 1 - reqNorm}枚)` : `手札不足 (あと ${reqNorm - (handCount - 1)}枚)`}</span>
+      </div>
+      <div class="sim-result-row">
+        <span>🏗️ 建設会社(割引-1): </span><span class="${canCo ? 'sim-tag-ok' : 'sim-tag-ng'}">${canCo ? `建設可能 (手札残り ${handCount - 1 - reqCo}枚)` : `手札不足 (あと ${reqCo - (handCount - 1)}枚)`}</span>
+      </div>
+    `;
+  }
+  renderAll();
+}
+
 function showHumanWageSellModal() {
   const p = G.players[mySeatIndex];
   if (!p) return;
-  const due = (p.workers + p.newWorkers) * WAGE_MAP[G.round];
-  const deficit = due - p.money;
+  const due = (p.workers + p.newWorkers) * WAGE_MAP[G.round], deficit = due - p.money;
   const sellables = ensureArray(p.buildings).filter(b => b && b.sellable !== false);
 
-  const modalLayer = document.getElementById('modal-layer');
-  modalLayer.innerHTML = `
+  if (sellables.length === 0) {
+    proceedPhaseOnline(G);
+    return;
+  }
+
+  document.getElementById('modal-layer').innerHTML = `
     <div class="modal-overlay">
       <div class="modal-box">
         <div class="modal-title" style="color:#b91c1c;">⚠️ 給料が不足しています！</div>
-        <div style="font-size:0.85rem; margin-bottom:8px; line-height:1.4;">
-          必要賃金: <strong>$${due}</strong> (現在所持金: $${p.money})<br>
-          不足額: <strong style="color:#dc2626; font-size:1rem;">$${deficit}</strong><br>
-          売却する建物を選択してください（売却額＝建設コスト）
+        <div style="font-size:0.85rem; margin-bottom:8px;">
+          必要賃金: <strong>$${due}</strong> (現在資金: <strong>$${p.money}</strong>) / 不足額: <strong style="color:#dc2626; font-size:1rem;">$${deficit}</strong>
+          <br><span style="font-size:0.75rem; color:#666;">※ 給料の全額に達するまで順番に建物を売却してください。</span>
         </div>
         <div class="modal-cards">
           ${sellables.map((b, i) => `
             <div class="modal-card" onclick="humanSellBuilding(${i})">
               <strong style="font-size:0.9rem;">${b.name}</strong>
-              <div style="font-size:0.75rem; color:#15803d; font-weight:bold;">売却額: +$${b.cost}</div>
-              <div style="font-size:0.72rem; color:#666;">VP: ${b.vp} (${b.tag})</div>
+              <div style="font-size:0.75rem; color:#15803d; font-weight:bold;">受取額: +$${b.vp}</div>
               <div style="font-size:0.7rem; color:#333; margin-top:4px;">${b.desc}</div>
-              <button class="btn-work" style="margin-top:6px; background:#b91c1c;">この建物を売却</button>
+              <button class="btn-work" style="margin-top:6px; background:#b91c1c;">この建物を売却 (+$${b.vp})</button>
             </div>
           `).join('')}
         </div>
@@ -1949,26 +2241,15 @@ function showHumanWageSellModal() {
   `;
 }
 
-// 人間の手札超過・手動破棄選択モーダル
 function showHumanHandDiscardModal() {
   const p = G.players[mySeatIndex];
   if (!p) return;
-  const limit = getHandLimit(p);
-  const excess = p.hand.length - limit;
-  if (excess <= 0) {
-    p.discardSettled = true;
-    activePhaseModal = null;
-    proceedPhaseOnline(G);
-    return;
-  }
+  const limit = getHandLimit(p), excess = p.hand.length - limit;
+  if (excess <= 0) { p.discardSettled = true; activePhaseModal = null; proceedPhaseOnline(G); return; }
 
-  showCardSelectModal(`手札上限超過！捨てるカードを ${excess} 枚選択 (上限:${limit}枚)`, p.hand, excess, (chosen) => {
-    chosen.sort((a, b) => b - a).forEach(idx => {
-      const c = p.hand.splice(idx, 1)[0];
-      if (c && !c.isGoods) G.discard.push(c);
-    });
-    p.discardSettled = true;
-    activePhaseModal = null;
+  showCardSelectModal(`手札上限超過！捨てるカードを ${excess} 枚選択 (上限:${limit}枚)`, p.hand, excess, chosen => {
+    chosen.sort((a, b) => b - a).forEach(idx => { const c = p.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
+    p.discardSettled = true; activePhaseModal = null;
     G.logHistory.unshift(`[R${G.round}] 🎴 ${p.name} が手札超過分 ${excess} 枚を捨てました。`);
     playCardSound();
     proceedPhaseOnline(G);
@@ -1977,10 +2258,8 @@ function showHumanHandDiscardModal() {
   });
 }
 
-function showCardSelectModal(title, cards, requiredCount, onConfirm) {
-  const modalLayer = document.getElementById('modal-layer');
-  const selected = new Set();
-
+function showCardSelectModal(title, cards, requiredCount, onConfirm, onCancel = null) {
+  const modalLayer = document.getElementById('modal-layer'), selected = new Set();
   function renderModal() {
     modalLayer.innerHTML = `
       <div class="modal-overlay">
@@ -1996,18 +2275,16 @@ function showCardSelectModal(title, cards, requiredCount, onConfirm) {
             `).join('')}
           </div>
           <div class="modal-btns">
+            ${onCancel ? `<button class="m-btn cancel" id="modal-cancel-btn">キャンセル</button>` : ''}
             <button class="m-btn ok" id="modal-ok-btn" ${selected.size === requiredCount ? '' : 'disabled'}>確定</button>
           </div>
         </div>
       </div>
     `;
-    document.getElementById('modal-ok-btn').onclick = () => {
-      modalLayer.innerHTML = '';
-      onConfirm(Array.from(selected));
-    };
+    if (onCancel) document.getElementById('modal-cancel-btn').onclick = () => { modalLayer.innerHTML = ''; onCancel(); };
+    document.getElementById('modal-ok-btn').onclick = () => { modalLayer.innerHTML = ''; onConfirm(Array.from(selected)); };
   }
-
-  window.toggleMCard = (idx) => {
+  window.toggleMCard = idx => {
     playTone(400, 'sine', 0.05, 0.1);
     if (selected.has(idx)) selected.delete(idx);
     else if (selected.size < requiredCount) selected.add(idx);

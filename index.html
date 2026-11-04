@@ -917,7 +917,7 @@ function advanceTurn(st) {
 }
 
 // ==========================================
-// 6. 最新・超上級AI思考エンジン
+// 6. 最新・超上級インフレ経済牽引型AI
 // ==========================================
 function cpuTurnAdvanced(cpu) {
   try {
@@ -962,19 +962,13 @@ function cpuTurnAdvanced(cpu) {
       return G.household >= sp.rate ? sp.rate : 0;
     };
 
-    let maxAvailableCashGain = 0;
-    candidates.forEach(c => {
-      const gain = getExactCashGain(c.wp.id, cpu.hand.length);
-      if (gain > maxAvailableCashGain) maxAvailableCashGain = gain;
-    });
-
     const isBuildWp = (id) => ['carpenter', 'const_co', 'general_const', 'settler', 'niko_const'].includes(id);
-    const isEarlyEngineCard = (id) => ['office', 'factory', 'steelworks', 'farm', 'orchard'].includes(id);
+    const isEngineCard = (id) => ['factory', 'auto_plant', 'steelworks', 'farm', 'plantation', 'orchard', 'office'].includes(id);
 
+    // 建設候補（インフレ牽引カードを重視）
     const getPossibleBuildTargets = () => {
       return cpu.hand.filter(c => {
         if (!c || c.isGoods) return false;
-        if (rnd <= 2 && !isEarlyEngineCard(c.id)) return false;
         return (cpu.hand.length - 1 >= c.cost);
       });
     };
@@ -984,17 +978,19 @@ function cpuTurnAdvanced(cpu) {
     let canSolventBuild = false;
 
     if (buildableTargets.length > 0) {
-      buildableTargets.sort((a,b) => b.vp - a.vp);
+      buildableTargets.sort((a,b) => {
+        if (rnd <= 4) {
+          const aEng = isEngineCard(a.id) ? 1 : 0;
+          const bEng = isEngineCard(b.id) ? 1 : 0;
+          if (aEng !== bEng) return bEng - aEng;
+        }
+        return b.vp - a.vp;
+      });
       bestBuildTarget = buildableTargets[0];
-      const minCost = bestBuildTarget.cost;
-      const handAfterBuild = Math.max(0, cpu.hand.length - 1 - minCost);
-      const turnsAfterBuild = remTurns - 1;
 
-      if (cpu.money >= upcomingWage) {
-        canSolventBuild = true;
-      } else if (turnsAfterBuild >= 1 && (cpu.money + maxAvailableCashGain >= upcomingWage) && handAfterBuild >= 1) {
-        canSolventBuild = true;
-      } else if (rnd >= 8 && bestBuildTarget.vp >= 16) {
+      // 売却可能建物の換金力も含めた柔軟な支払判定（建築を過剰に抑制しない）
+      const totalBuffer = cpu.money + cpu.buildings.filter(b => b.sellable !== false).reduce((sum, b) => sum + b.vp, 0);
+      if (totalBuffer >= upcomingWage || remTurns > 1 || rnd <= 3) {
         canSolventBuild = true;
       }
     }
@@ -1009,85 +1005,105 @@ function cpuTurnAdvanced(cpu) {
 
       if (rnd === 9 && w.id === 'quarry') { cand.score = -999999; return; }
 
-      if (isBuildWp(w.id)) {
-        if (!canSolventBuild || !bestBuildTarget) { cand.score = -999999; return; }
-        if (rnd <= 2 && !isEarlyEngineCard(bestBuildTarget.id)) { cand.score = -999999; return; }
+      // 鉱山連打の根本抑制：手札が1枚以上あれば鉱山はほぼ選ばない
+      if (w.id === 'mine' && cpu.hand.length >= 1) {
+        cand.score = -999999; return;
       }
 
+      // 手札上限超過時のドロー回避
       if (cpu.hand.length >= handLimit && ['mine', 'quarry', 'farm', 'plantation', 'steelworks', 'chem_factory', 'burn'].includes(w.id)) {
         cand.score = -999999; return;
       }
-      if (w.id === 'orchard' && cpu.hand.length >= 4) { cand.score = -999999; return; }
 
-      if (rnd >= 7 && ['school', 'high_school', 'university'].includes(w.id)) { cand.score = -999999; return; }
-      if (rnd >= 8 && ['vocational_school'].includes(w.id)) { cand.score = -999999; return; }
-
-      if (rnd === 9 && cpu.money >= upcomingWage && ['mine', 'quarry'].includes(w.id)) {
-        cand.score = -999999; return;
+      // 1. 【最速雇用＆インフレエンジン点火】
+      // 雇用して家計への給料循環を最大化
+      if (rnd <= 2 && w.id === 'school') {
+        score = 980000;
+        tag = `【最速増員】家計への賃金供給量を増やし、好景気の基盤を作るため学校を利用。`;
+      } else if (rnd >= 3 && rnd <= 6 && ['high_school', 'university'].includes(w.id)) {
+        score = 950000;
+        tag = `【積極的雇用拡大】労働力を5人体制へ拡充し、毎ラウンド大量の賃金を家計へ循環。`;
       }
 
-      if (w.id === 'mine' && cpu.hand.length >= 2) {
-        cand.score = -999999; return;
+      // 2. 【強力エンジン施設・大型施設の着工】
+      else if (isBuildWp(w.id) && canSolventBuild && bestBuildTarget) {
+        const discBonus = (w.id === 'general_const' || w.id === 'const_co') ? 40000 : 0;
+        const engineBonus = isEngineCard(bestBuildTarget.id) ? 60000 : 0;
+        if (rnd === 9) {
+          score = 990000 + bestBuildTarget.vp * 250;
+          tag = `【最終Rの最高打点建設】手札の【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を着工してVP確定。`;
+        } else if (rnd <= 4) {
+          score = 920000 + engineBonus + discBonus;
+          tag = `【エンジン建設】手札・リソースの爆発的供給源となる【${bestBuildTarget.name}】を着工。`;
+        } else {
+          score = 880000 + bestBuildTarget.vp * 200 + discBonus;
+          tag = `【高打点施設建設】盤面に【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を建設。`;
+        }
       }
 
-      if (w.id === 'quarry' && isEvenRound && rnd < 9 && remTurns <= 2) {
-        score = 850000;
-        tag = `【次ラウンド初手予約（採石場）】次Rの新設換金所・インフラを初手で独占するためスタP奪取。`;
-      } else if (cpu.hand.length <= 3 && ['auto_plant', 'chem_factory', 'steelworks'].includes(w.id)) {
-        score = 800000 + (w.id === 'auto_plant' ? 30000 : 10000);
-        tag = `【売却インフラのハイジャック】盤面に解放された最強ドロー施設（${w.name}）を独占。`;
-      } else if (['expo', 'dept_store', 'supermarket', 'market', 'restaurant', 'stall', 'cafe'].includes(w.id)) {
+      // 3. 【大量ドロー・手札爆発施設】
+      else if (['auto_plant', 'steelworks', 'factory', 'chem_factory'].includes(w.id)) {
+        if (cpu.hand.length <= 4) {
+          score = 900000;
+          tag = `【手札爆発ドロー】上位換金所や建設コストを満たすため【${w.name}】で大量獲得。`;
+        }
+      }
+
+      // 4. 【消費財の大量調達（農場・大農園・焼畑）】
+      else if (['farm', 'plantation', 'burn', 'orchard'].includes(w.id) && cpu.hand.length <= 3) {
+        score = 870000;
+        tag = `【消費財確保】換金所での一括高額売却・建設原資として消費財を調達。`;
+      }
+
+      // 5. 【大型換金所による家計総取り（スーパー・百貨店・万博・レストラン）】
+      else if (['expo', 'dept_store', 'supermarket', 'restaurant', 'market', 'stall', 'cafe'].includes(w.id)) {
         const gain = getExactCashGain(w.id, cpu.hand.length);
         if (gain > 0) {
-          if (currentDeficit > 0) {
-            score = 750000 + gain * 200;
-            tag = `【急務：給料換金】家計（$${G.household}）から満額$${gain}を一撃回収して給料を確保。`;
+          // 上位換金所（$12以上）なら高評価
+          if (gain >= 12) {
+            score = 890000 + gain * 300;
+            tag = `【家計の大型回収】家計から満額$${gain}を一括回収して資本を増強。`;
+          } else if (currentDeficit > 0) {
+            // 給料ピンチ時のみ露店・珈琲店を利用
+            score = 860000 + gain * 100;
+            tag = `【急務：給料換金】給料不足を補うため家計から$${gain}を回収。`;
           } else if (rnd >= 8) {
-            score = 720000 + gain * 150;
-            tag = `【終盤の資金VP化】上位換金所で満額$${gain}を獲得し最終得点を底上げ。`;
+            // 終盤の得点換金
+            score = 750000 + gain * 150;
+            tag = `【終盤の資金VP化】家計から$${gain}を回収して最終得点を底上げ。`;
           } else {
-            score = 250000 + gain * 50;
-            tag = `【計画換金】家計から満額$${gain}を回収。`;
+            // 余裕がある序盤〜中盤の露店・カフェは家計枯渇を招くため優先度を下げる
+            score = 200000 + gain * 50;
+            tag = `【小規模換金】余剰手札を現金化。`;
           }
         } else {
           cand.score = -999999; return;
         }
-      } else if (isBuildWp(w.id) && canSolventBuild && bestBuildTarget) {
-        const discBonus = (w.id === 'general_const' || w.id === 'const_co') ? 30000 : 0;
-        if (rnd === 9) {
-          score = 900000 + bestBuildTarget.vp * 200 + discBonus;
-          tag = `【最終Rの最高打点建設】手札の【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を着工してVP確定。`;
-        } else if (rnd >= 7) {
-          score = 730000 + bestBuildTarget.vp * 200 + discBonus;
-          tag = `【終盤の高VP大型建設】勝利決定打となる【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を建設。`;
-        } else if (rnd <= 3 && isEarlyEngineCard(bestBuildTarget.id)) {
-          score = 650000 + bestBuildTarget.vp * 100 + discBonus;
-          tag = `【序盤エンジン建設】基盤施設【${bestBuildTarget.name}】を着工。`;
-        } else {
-          score = 500000 + bestBuildTarget.vp * 100 + discBonus;
-          tag = `【中型建物建設】有効施設【${bestBuildTarget.name}】を建設。`;
-        }
-      } else if (rnd <= 2 && w.id === 'school') {
-        score = 620000;
-        tag = `【序盤の最速増員】労働者を3人に増やし手番数を拡大。`;
-      } else if (rnd >= 4 && rnd <= 6 && ['high_school', 'university'].includes(w.id)) {
-        if (cpu.hand.length >= 2 || cpu.money >= upcomingWage) {
-          score = 600000;
-          tag = `【中盤の積極増員】手番数優位を確立するため雇用。`;
-        }
-      } else if (['factory', 'auto_plant'].includes(w.id) && cpu.hand.length >= 2 && cpu.hand.length <= 4) {
-        score = 550000;
-        tag = `【手札回転】手札を捨てて山札から強力カードを引き込む。`;
-      } else if (cpu.hand.length <= 2 && ['office', 'orchard', 'farm', 'plantation'].includes(w.id)) {
-        score = 480000;
-        tag = `【燃料補給】換金・建設用の手札・消費財を補充。`;
-      } else if (w.id === 'quarry' && rnd < 9 && cpu.hand.length < handLimit) {
-        score = 350000;
-        tag = `【状況打開の採石場】次ラウンドの先手を取りつつ1ドロー。`;
-      } else {
+      }
+
+      // 6. 【次ラウンドの先手予約（偶数Rの採石場）】
+      else if (w.id === 'quarry' && isEvenRound && rnd < 9 && remTurns <= 2) {
+        score = 840000;
+        tag = `【次ラウンド初手予約（採石場）】次Rの新設換金所・インフラを初手で独占するためスタP奪取。`;
+      }
+
+      // 7. 【設計事務所でのカード選定】
+      else if (w.id === 'office' && cpu.hand.length <= 3) {
+        score = 820000;
+        tag = `【燃料補給】山札から重要施設・エンジンカードを探索。`;
+      }
+
+      // 8. 【状況打開の採石場】
+      else if (w.id === 'quarry' && rnd < 9 && cpu.hand.length < handLimit) {
+        score = 650000;
+        tag = `【状況打開の採石場】スタPを狙いつつドロー。`;
+      }
+
+      // 最低限の繋ぎ
+      else {
         if (w.id === 'mine') {
-          score = (cpu.hand.length === 0 ? 1000 : 10);
-          tag = `【最低限の繋ぎ】手札枯渇のため鉱山で1枚補充。`;
+          score = (cpu.hand.length === 0 ? 300000 : 10);
+          tag = `【緊急手札補充】手札完全枯渇のため鉱山で1枚補充。`;
         } else {
           score = 50;
           tag = `【最低限の繋ぎ】空き職場を利用。`;
@@ -1110,7 +1126,7 @@ function cpuTurnAdvanced(cpu) {
     cpu.placedWorkers++;
 
     const aiLog = `【盤面・財務】手持ち: $${cpu.money} / 必要給料: $${upcomingWage} / 家計残高: $${G.household} / 手札: ${cpu.hand.length}枚\n【スタP状況】現在スタP: ${curStartName} / 採石場狙い度: ${quarryPriorityTier}\n【思考】${bestCand.strategyTag}`;
-    recordTrace(`超上級AI (${cpu.name}) 決定: ${chosen.name} [Score:${bestCand.score}]\n${aiLog}`);
+    recordTrace(`超上級インフレAI (${cpu.name}) 決定: ${chosen.name} [Score:${bestCand.score}]\n${aiLog}`);
 
     applyActionEffect(cpu, chosen, true, () => {
       advanceTurn(G);

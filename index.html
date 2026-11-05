@@ -780,7 +780,7 @@ function flashWorkplaceCard(wpName) {
 // ==========================================
 const CARD_SPECS = [
   { id: 'farm', name: '農場', cost: 1, vp: 6, count: 8, tag: '農園', desc: '消費財を2枚引く。', sellable: true },
-  { id: 'burn', name: '焼畑', cost: 1, vp: 0, count: 2, tag: '農園', desc: '消費財を5枚引く。R終了時に捨て札へ。', sellable: false },
+  { id: 'burn', name: '焼畑', cost: 1, vp: 0, count: 2, tag: '農園', desc: '消費財を5枚引く。利用時に捨て札へ。', sellable: false },
   { id: 'cafe', name: '珈琲店', cost: 1, vp: 8, count: 2, tag: '商業', desc: '家計から$5を得る。', sellable: true, moneyGain: 5 },
   { id: 'office', name: '設計事務所', cost: 1, vp: 8, count: 4, tag: '商業', desc: '山から5枚見て1枚獲得。', sellable: true },
   { id: 'factory', name: '工場', cost: 2, vp: 12, count: 8, tag: '工場', desc: '手札2枚捨て4枚引く。', sellable: true },
@@ -1450,7 +1450,9 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
     const count = wp.id === 'burn' ? 5 : (wp.id === 'plantation' ? 3 : 2);
     const goods = [];
     for (let i = 0; i < count; i++) { const g = createGoods(); actualPlayer.hand.push(g); goods.push(g); }
-    if (wp.id === 'burn') wp.pendingDiscard = true;
+    if (wp.id === 'burn') {
+      wp.pendingDiscard = true; // 労働者を配置して発動したため破棄フラグを立てる
+    }
     showCardsCutIn(goods, `${wp.name}で消費財獲得！`, pName, actualPlayer.id, false);
     G.logHistory.unshift(`[R${rnd}] 🌾 ${aiPrefix}➡ ${pName} が【${wp.name}】で消費財${count}枚を獲得。`);
     doneCb();
@@ -1793,9 +1795,24 @@ function humanSellBuilding(bIdx) {
 
 function finalizeRoundCleanup(st) {
   ensureArray(st.players).forEach(p => { delete p.wageSettled; delete p.discardSettled; });
-  st.publicWorkplaces = ensureArray(st.publicWorkplaces).filter(w => w && w.id !== 'burn');
-  st.soldWorkplaces = ensureArray(st.soldWorkplaces).filter(w => w && w.id !== 'burn');
-  st.players.forEach(p => { p.buildings = ensureArray(p.buildings).filter(b => b && b.id !== 'burn'); });
+
+  // 焼畑：労働者が配置されたもの（発動済み）のみ捨て札へ送って消滅させ、未配置の焼畑は手元に残す
+  const cleanBurnWorkplace = (w) => {
+    if (w && w.id === 'burn') {
+      const isUsed = (w.workers && w.workers.length > 0) || w.pendingDiscard;
+      if (isUsed) {
+        if (!w.isGoods) st.discard.push(w);
+        return false; // 盤面・手元から削除
+      }
+    }
+    return true; // 保持
+  };
+
+  st.publicWorkplaces = ensureArray(st.publicWorkplaces).filter(cleanBurnWorkplace);
+  st.soldWorkplaces = ensureArray(st.soldWorkplaces).filter(cleanBurnWorkplace);
+  st.players.forEach(p => {
+    p.buildings = ensureArray(p.buildings).filter(cleanBurnWorkplace);
+  });
 
   st.historyTimeline = ensureArray(st.historyTimeline);
   st.historyTimeline.push({
@@ -1819,9 +1836,14 @@ function finalizeRoundCleanup(st) {
       delete st.nextStartPlayer;
     }
     st.turnPlayer = st.startPlayer;
-    ensureArray(st.publicWorkplaces).forEach(w => { if (w) w.workers = []; });
-    ensureArray(st.soldWorkplaces).forEach(w => { if (w) w.workers = []; });
-    ensureArray(st.players).forEach(p => { if (p) { p.placedWorkers = 0; ensureArray(p.buildings).forEach(b => { if (b) b.workers = []; }); } });
+    ensureArray(st.publicWorkplaces).forEach(w => { if (w) { w.workers = []; delete w.pendingDiscard; } });
+    ensureArray(st.soldWorkplaces).forEach(w => { if (w) { w.workers = []; delete w.pendingDiscard; } });
+    ensureArray(st.players).forEach(p => {
+      if (p) {
+        p.placedWorkers = 0;
+        ensureArray(p.buildings).forEach(b => { if (b) { b.workers = []; delete b.pendingDiscard; } });
+      }
+    });
 
     if (st.round === 2) st.publicWorkplaces.push({ id: 'stall', name: '露店', desc: '手札1枚→$6', capacity: 99, workers: [] });
     if (st.round === 3) st.publicWorkplaces.push({ id: 'market', name: '市場', desc: '手札2枚→$12', capacity: 99, workers: [] });

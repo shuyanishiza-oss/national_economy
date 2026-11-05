@@ -1,3 +1,4 @@
+<!-- 以下、修正箇所を反映した完全版 HTML / JS です -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -179,6 +180,7 @@
   }
   .card.workplace { border-top: 4px solid #4a3826; }
   .card.my-facility { border-top: 4px solid var(--p0); background: linear-gradient(180deg, #f0f6ff 0%, #e2edff 100%); }
+  .card.other-facility { border-top: 4px solid #78350f; background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%); }
   .card.sold-facility { border-top: 4px solid #b91c1c; background: linear-gradient(180deg, #fff5f5 0%, #ffe2e2 100%); }
   .card.goods { background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%); border: 1px dashed #22c55e; }
   .card.passive { opacity: 0.92; border-top: 4px solid #6b7280; }
@@ -423,6 +425,15 @@
         <span id="my-bld-count-info" style="font-size:0.75rem; color:#666;">所有: 0軒</span>
       </div>
       <div class="card-grid" id="my-buildings-grid"></div>
+    </div>
+
+    <!-- 追加：他プレイヤー/CPUの建物表示セクション -->
+    <div class="section-card" id="other-buildings-section" style="border-color:#78350f; display:none;">
+      <div class="section-header">
+        <span style="color:#92400e;">🏘️ 他プレイヤー・CPUの所有建物</span>
+        <span id="other-bld-count-info" style="font-size:0.75rem; color:#666;">合計: 0軒</span>
+      </div>
+      <div class="card-grid" id="other-buildings-grid"></div>
     </div>
 
     <div class="section-card">
@@ -809,13 +820,13 @@ let G = {
 
 function ensureArray(val) {
   if (!val) return [];
-  if (Array.isArray(val)) return val;
+  if (Array.isArray(val)) return val.filter(i => i !== undefined && i !== null);
   const arr = [];
   for (let k in val) {
     const idx = parseInt(k, 10);
     if (!isNaN(idx)) arr[idx] = val[k]; else arr.push(val[k]);
   }
-  return arr.filter(i => i !== undefined);
+  return arr.filter(i => i !== undefined && i !== null);
 }
 
 function sanitizeState(st) {
@@ -865,11 +876,10 @@ function getHandLimit(p) {
   return 5 + ensureArray(p.buildings).filter(b => b && b.id === 'warehouse').length * 4;
 }
 
-// 【厳格ルール】家計に満額の現金がある場合のみ利用可能
 function canUseWorkplace(p, wp) {
   if (!p || !wp) return false;
   if (wp.sellable === false && wp.id !== 'burn') return false;
-  if (ensureArray(wp.workers).length >= wp.capacity) return false;
+  if (ensureArray(wp.workers).length >= (wp.capacity || 1)) return false;
 
   const moneyRates = {
     cafe: 5,
@@ -965,7 +975,6 @@ function cpuTurnAdvanced(cpu) {
     const isBuildWp = (id) => ['carpenter', 'const_co', 'general_const', 'settler', 'niko_const'].includes(id);
     const isEngineCard = (id) => ['factory', 'auto_plant', 'steelworks', 'farm', 'plantation', 'orchard', 'office'].includes(id);
 
-    // 建設候補（インフレ牽引カードを重視）
     const getPossibleBuildTargets = () => {
       return cpu.hand.filter(c => {
         if (!c || c.isGoods) return false;
@@ -988,7 +997,6 @@ function cpuTurnAdvanced(cpu) {
       });
       bestBuildTarget = buildableTargets[0];
 
-      // 売却可能建物の換金力も含めた柔軟な支払判定（建築を過剰に抑制しない）
       const totalBuffer = cpu.money + cpu.buildings.filter(b => b.sellable !== false).reduce((sum, b) => sum + b.vp, 0);
       if (totalBuffer >= upcomingWage || remTurns > 1 || rnd <= 3) {
         canSolventBuild = true;
@@ -1004,29 +1012,19 @@ function cpuTurnAdvanced(cpu) {
       let tag = "最低限の繋ぎ";
 
       if (rnd === 9 && w.id === 'quarry') { cand.score = -999999; return; }
+      if (w.id === 'mine' && cpu.hand.length >= 1) { cand.score = -999999; return; }
 
-      // 鉱山連打の根本抑制：手札が1枚以上あれば鉱山はほぼ選ばない
-      if (w.id === 'mine' && cpu.hand.length >= 1) {
-        cand.score = -999999; return;
-      }
-
-      // 手札上限超過時のドロー回避
       if (cpu.hand.length >= handLimit && ['mine', 'quarry', 'farm', 'plantation', 'steelworks', 'chem_factory', 'burn'].includes(w.id)) {
         cand.score = -999999; return;
       }
 
-      // 1. 【最速雇用＆インフレエンジン点火】
-      // 雇用して家計への給料循環を最大化
       if (rnd <= 2 && w.id === 'school') {
         score = 980000;
         tag = `【最速増員】家計への賃金供給量を増やし、好景気の基盤を作るため学校を利用。`;
       } else if (rnd >= 3 && rnd <= 6 && ['high_school', 'university'].includes(w.id)) {
         score = 950000;
-        tag = `【積極的雇用拡大】労働力を5人体制へ拡充し、毎ラウンド大量の賃金を家計へ循環。`;
-      }
-
-      // 2. 【強力エンジン施設・大型施設の着工】
-      else if (isBuildWp(w.id) && canSolventBuild && bestBuildTarget) {
+        tag = `【積極的雇用拡大】労働力を拡充し、毎ラウンド大量の賃金を家計へ循環。`;
+      } else if (isBuildWp(w.id) && canSolventBuild && bestBuildTarget) {
         const discBonus = (w.id === 'general_const' || w.id === 'const_co') ? 40000 : 0;
         const engineBonus = isEngineCard(bestBuildTarget.id) ? 60000 : 0;
         if (rnd === 9) {
@@ -1039,68 +1037,43 @@ function cpuTurnAdvanced(cpu) {
           score = 880000 + bestBuildTarget.vp * 200 + discBonus;
           tag = `【高打点施設建設】盤面に【${bestBuildTarget.name}】(${bestBuildTarget.vp}VP)を建設。`;
         }
-      }
-
-      // 3. 【大量ドロー・手札爆発施設】
-      else if (['auto_plant', 'steelworks', 'factory', 'chem_factory'].includes(w.id)) {
+      } else if (['auto_plant', 'steelworks', 'factory', 'chem_factory'].includes(w.id)) {
         if (cpu.hand.length <= 4) {
           score = 900000;
           tag = `【手札爆発ドロー】上位換金所や建設コストを満たすため【${w.name}】で大量獲得。`;
         }
-      }
-
-      // 4. 【消費財の大量調達（農場・大農園・焼畑）】
-      else if (['farm', 'plantation', 'burn', 'orchard'].includes(w.id) && cpu.hand.length <= 3) {
+      } else if (['farm', 'plantation', 'burn', 'orchard'].includes(w.id) && cpu.hand.length <= 3) {
         score = 870000;
         tag = `【消費財確保】換金所での一括高額売却・建設原資として消費財を調達。`;
-      }
-
-      // 5. 【大型換金所による家計総取り（スーパー・百貨店・万博・レストラン）】
-      else if (['expo', 'dept_store', 'supermarket', 'restaurant', 'market', 'stall', 'cafe'].includes(w.id)) {
+      } else if (['expo', 'dept_store', 'supermarket', 'restaurant', 'market', 'stall', 'cafe'].includes(w.id)) {
         const gain = getExactCashGain(w.id, cpu.hand.length);
         if (gain > 0) {
-          // 上位換金所（$12以上）なら高評価
           if (gain >= 12) {
             score = 890000 + gain * 300;
             tag = `【家計の大型回収】家計から満額$${gain}を一括回収して資本を増強。`;
           } else if (currentDeficit > 0) {
-            // 給料ピンチ時のみ露店・珈琲店を利用
             score = 860000 + gain * 100;
             tag = `【急務：給料換金】給料不足を補うため家計から$${gain}を回収。`;
           } else if (rnd >= 8) {
-            // 終盤の得点換金
             score = 750000 + gain * 150;
             tag = `【終盤の資金VP化】家計から$${gain}を回収して最終得点を底上げ。`;
           } else {
-            // 余裕がある序盤〜中盤の露店・カフェは家計枯渇を招くため優先度を下げる
             score = 200000 + gain * 50;
             tag = `【小規模換金】余剰手札を現金化。`;
           }
         } else {
           cand.score = -999999; return;
         }
-      }
-
-      // 6. 【次ラウンドの先手予約（偶数Rの採石場）】
-      else if (w.id === 'quarry' && isEvenRound && rnd < 9 && remTurns <= 2) {
+      } else if (w.id === 'quarry' && isEvenRound && rnd < 9 && remTurns <= 2) {
         score = 840000;
         tag = `【次ラウンド初手予約（採石場）】次Rの新設換金所・インフラを初手で独占するためスタP奪取。`;
-      }
-
-      // 7. 【設計事務所でのカード選定】
-      else if (w.id === 'office' && cpu.hand.length <= 3) {
+      } else if (w.id === 'office' && cpu.hand.length <= 3) {
         score = 820000;
         tag = `【燃料補給】山札から重要施設・エンジンカードを探索。`;
-      }
-
-      // 8. 【状況打開の採石場】
-      else if (w.id === 'quarry' && rnd < 9 && cpu.hand.length < handLimit) {
+      } else if (w.id === 'quarry' && rnd < 9 && cpu.hand.length < handLimit) {
         score = 650000;
         tag = `【状況打開の採石場】スタPを狙いつつドロー。`;
-      }
-
-      // 最低限の繋ぎ
-      else {
+      } else {
         if (w.id === 'mine') {
           score = (cpu.hand.length === 0 ? 300000 : 10);
           tag = `【緊急手札補充】手札完全枯渇のため鉱山で1枚補充。`;
@@ -1442,38 +1415,43 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
   const rnd = G.round, pName = player.name;
   const aiPrefix = isCpu && aiLogInfo ? `${aiLogInfo}\n` : '';
 
+  // 参照整合性を確保
+  const actualPlayer = G.players[player.id] || player;
+  actualPlayer.hand = ensureArray(actualPlayer.hand);
+  actualPlayer.buildings = ensureArray(actualPlayer.buildings);
+
   if (wp.id === 'mine') {
     const c = drawCardFromState(G);
-    player.hand.push(c);
-    showCardsCutIn([c], "鉱山でカード獲得！", pName, player.id, false);
+    actualPlayer.hand.push(c);
+    showCardsCutIn([c], "鉱山でカード獲得！", pName, actualPlayer.id, false);
     G.logHistory.unshift(`[R${rnd}] ${aiPrefix}➡ ${pName} が【鉱山】でカードを引きました。`);
     doneCb();
   } else if (wp.id === 'quarry') {
     const c = drawCardFromState(G);
-    player.hand.push(c);
-    G.nextStartPlayer = player.id;
-    showCardsCutIn([c], "採石場でスタP奪取！", pName, player.id, false);
+    actualPlayer.hand.push(c);
+    G.nextStartPlayer = actualPlayer.id;
+    showCardsCutIn([c], "採石場でスタP奪取！", pName, actualPlayer.id, false);
     G.logHistory.unshift(`[R${rnd}] 🚩 ${aiPrefix}➡ ${pName} が【採石場】でドロー＆次RスタPへ！`);
     doneCb();
   } else if (wp.id === 'school' || wp.id === 'high_school' || wp.id === 'university') {
     let toAdd = 1;
-    if (wp.id === 'high_school') toAdd = Math.max(0, 4 - (player.workers + player.newWorkers));
-    if (wp.id === 'university') toAdd = Math.max(0, 5 - (player.workers + player.newWorkers));
-    player.newWorkers += toAdd;
+    if (wp.id === 'high_school') toAdd = Math.max(0, 4 - (actualPlayer.workers + actualPlayer.newWorkers));
+    if (wp.id === 'university') toAdd = Math.max(0, 5 - (actualPlayer.workers + actualPlayer.newWorkers));
+    actualPlayer.newWorkers += toAdd;
     playTone(587.33, 'triangle', 0.25, 0.2);
     G.logHistory.unshift(`[R${rnd}] 🎓 ${aiPrefix}➡ ${pName} が【${wp.name}】で労働者を雇用（+${toAdd}名）。`);
     doneCb();
   } else if (wp.id === 'vocational_school') {
-    player.workers += 1;
+    actualPlayer.workers += 1;
     playTone(783.99, 'triangle', 0.35, 0.25);
     G.logHistory.unshift(`[R${rnd}] 🛠️ ${aiPrefix}➡ ${pName} が【専門学校】で即戦力労働者を雇用（即稼働可能）。`);
     doneCb();
   } else if (wp.id === 'farm' || wp.id === 'plantation' || wp.id === 'burn') {
     const count = wp.id === 'burn' ? 5 : (wp.id === 'plantation' ? 3 : 2);
     const goods = [];
-    for (let i = 0; i < count; i++) { const g = createGoods(); player.hand.push(g); goods.push(g); }
+    for (let i = 0; i < count; i++) { const g = createGoods(); actualPlayer.hand.push(g); goods.push(g); }
     if (wp.id === 'burn') wp.pendingDiscard = true;
-    showCardsCutIn(goods, `${wp.name}で消費財獲得！`, pName, player.id, false);
+    showCardsCutIn(goods, `${wp.name}で消費財獲得！`, pName, actualPlayer.id, false);
     G.logHistory.unshift(`[R${rnd}] 🌾 ${aiPrefix}➡ ${pName} が【${wp.name}】で消費財${count}枚を獲得。`);
     doneCb();
   } else if (wp.id === 'cafe') {
@@ -1484,23 +1462,23 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
     }
     playCoinSound();
     G.household -= 5; 
-    player.money += 5;
-    spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[player.id], 8, null, player.id);
+    actualPlayer.money += 5;
+    spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[actualPlayer.id], 8, null, actualPlayer.id);
     G.logHistory.unshift(`[R${rnd}] ☕ ${aiPrefix}➡ ${pName} が【珈琲店】で家計から$5を獲得。`);
     doneCb();
   } else if (wp.id === 'orchard') {
-    const toDraw = Math.max(0, 4 - player.hand.length);
+    const toDraw = Math.max(0, 4 - actualPlayer.hand.length);
     const goods = [];
-    for (let i = 0; i < toDraw; i++) { const g = createGoods(); player.hand.push(g); goods.push(g); }
-    if (toDraw) showCardsCutIn(goods, `果樹園で消費財×${toDraw}獲得！`, pName, player.id, false);
+    for (let i = 0; i < toDraw; i++) { const g = createGoods(); actualPlayer.hand.push(g); goods.push(g); }
+    if (toDraw) showCardsCutIn(goods, `果樹園で消費財×${toDraw}獲得！`, pName, actualPlayer.id, false);
     G.logHistory.unshift(`[R${rnd}] 🍎 ${aiPrefix}➡ ${pName} が【果樹園】で消費財${toDraw}枚を獲得。`);
     doneCb();
   } else if (wp.id === 'steelworks' || wp.id === 'chem_factory') {
-    const count = wp.id === 'steelworks' ? 3 : (player.hand.length === 0 ? 4 : 2);
+    const count = wp.id === 'steelworks' ? 3 : (actualPlayer.hand.length === 0 ? 4 : 2);
     const drawn = [];
     for (let i = 0; i < count; i++) drawn.push(drawCardFromState(G));
-    player.hand.push(...drawn);
-    showCardsCutIn(drawn, `${wp.name}で${count}枚ドロー！`, pName, player.id, false);
+    actualPlayer.hand.push(...drawn);
+    showCardsCutIn(drawn, `${wp.name}で${count}枚ドロー！`, pName, actualPlayer.id, false);
     G.logHistory.unshift(`[R${rnd}] 🏭 ${aiPrefix}➡ ${pName} が【${wp.name}】でカード${count}枚を獲得。`);
     doneCb();
   } else if (wp.id === 'office') {
@@ -1509,16 +1487,16 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
     if (isCpu) {
       pool.sort((a,b) => b.vp - a.vp);
       const picked = pool.shift();
-      player.hand.push(picked);
-      showCardsCutIn([picked], "設計事務所で獲得！", pName, player.id, false);
+      actualPlayer.hand.push(picked);
+      showCardsCutIn([picked], "設計事務所で獲得！", pName, actualPlayer.id, false);
       pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
       G.logHistory.unshift(`[R${rnd}] 📐 ${aiPrefix}➡ ${pName} が【設計事務所】でカードを獲得。`);
       doneCb();
     } else {
       showCardSelectModal('【設計事務所】獲得するカードを1枚選択', pool, 1, chosen => {
         const picked = pool.splice(chosen[0], 1)[0];
-        player.hand.push(picked);
-        showCardsCutIn([picked], "設計事務所で獲得！", pName, player.id, false);
+        actualPlayer.hand.push(picked);
+        showCardsCutIn([picked], "設計事務所で獲得！", pName, actualPlayer.id, false);
         pool.forEach(c => { if (c && !c.isGoods) G.discard.push(c); });
         G.logHistory.unshift(`[R${rnd}] 📐 ${pName} が【設計事務所】で【${picked.name}】を獲得。`);
         doneCb();
@@ -1527,21 +1505,21 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
   } else if (wp.id === 'factory' || wp.id === 'auto_plant') {
     const req = wp.id === 'factory' ? 2 : 3, gain = wp.id === 'factory' ? 4 : 7;
     if (isCpu) {
-      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
-      for (let i = 0; i < req; i++) { const c = player.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
+      actualPlayer.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < req; i++) { const c = actualPlayer.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
       const drawn = [];
       for (let i = 0; i < gain; i++) drawn.push(drawCardFromState(G));
-      player.hand.push(...drawn);
-      showCardsCutIn(drawn, `${wp.name}で${gain}枚ドロー！`, pName, player.id, false);
+      actualPlayer.hand.push(...drawn);
+      showCardsCutIn(drawn, `${wp.name}で${gain}枚ドロー！`, pName, actualPlayer.id, false);
       G.logHistory.unshift(`[R${rnd}] ⚙️ ${aiPrefix}➡ ${pName} が【${wp.name}】で手札${req}枚を捨て${gain}枚ドロー。`);
       doneCb();
     } else {
-      showCardSelectModal(`【${wp.name}】捨てる手札を ${req} 枚選択`, player.hand, req, chosen => {
-        chosen.sort((a,b) => b-a).forEach(idx => { const c = player.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
+      showCardSelectModal(`【${wp.name}】捨てる手札を ${req} 枚選択`, actualPlayer.hand, req, chosen => {
+        chosen.sort((a,b) => b-a).forEach(idx => { const c = actualPlayer.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
         const drawn = [];
         for (let i = 0; i < gain; i++) drawn.push(drawCardFromState(G));
-        player.hand.push(...drawn);
-        showCardsCutIn(drawn, `${wp.name}で${gain}枚ドロー！`, pName, player.id, false);
+        actualPlayer.hand.push(...drawn);
+        showCardsCutIn(drawn, `${wp.name}で${gain}枚ドロー！`, pName, actualPlayer.id, false);
         G.logHistory.unshift(`[R${rnd}] ⚙️ ${pName} が【${wp.name}】で手札${req}枚を捨て${gain}枚ドロー。`);
         doneCb();
       }, cancelCb);
@@ -1557,59 +1535,70 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
     }
 
     if (isCpu) {
-      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
-      for (let i = 0; i < rate[0]; i++) { const c = player.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
+      actualPlayer.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < rate[0]; i++) { const c = actualPlayer.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
       G.household -= reqMoney; 
-      player.money += reqMoney;
+      actualPlayer.money += reqMoney;
       playCoinSound();
-      spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[player.id], 10, null, player.id);
+      spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[actualPlayer.id], 10, null, actualPlayer.id);
       G.logHistory.unshift(`[R${rnd}] 💰 ${aiPrefix}➡ ${pName} が【${wp.name}】で手札を売却し家計から$${reqMoney}獲得。`);
       doneCb();
     } else {
-      showCardSelectModal(`【${wp.name}】売却するカードを ${rate[0]} 枚選択（受取: $${rate[1]}）`, player.hand, rate[0], chosen => {
-        chosen.sort((a,b) => b-a).forEach(idx => { const c = player.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
+      showCardSelectModal(`【${wp.name}】売却するカードを ${rate[0]} 枚選択（受取: $${rate[1]}）`, actualPlayer.hand, rate[0], chosen => {
+        chosen.sort((a,b) => b-a).forEach(idx => { const c = actualPlayer.hand.splice(idx, 1)[0]; if (c && !c.isGoods) G.discard.push(c); });
         playCoinSound();
         G.household -= reqMoney; 
-        player.money += reqMoney;
-        spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[player.id], 10, null, player.id);
+        actualPlayer.money += reqMoney;
+        spawnCoinParticles(document.getElementById('hud-household-box'), document.querySelectorAll('.player-box')[actualPlayer.id], 10, null, actualPlayer.id);
         G.logHistory.unshift(`[R${rnd}] 💰 ${pName} が【${wp.name}】で手札を売却し家計から$${reqMoney}獲得。`);
         doneCb();
       }, cancelCb);
     }
   } else if (wp.id === 'carpenter' || wp.id === 'const_co' || wp.id === 'general_const') {
     const disc = wp.id === 'const_co' ? 1 : 0;
-    const buildables = player.hand.filter(c => !c.isGoods && (player.hand.length - 1 >= Math.max(0, c.cost - disc)));
+    const buildables = actualPlayer.hand.filter(c => !c.isGoods && (actualPlayer.hand.length - 1 >= Math.max(0, c.cost - disc)));
     if (isCpu) {
       let targetList = buildables;
       if (rnd <= 2) {
         const engines = buildables.filter(c => ['office', 'factory', 'steelworks', 'farm', 'orchard'].includes(c.id));
         targetList = engines.length ? engines : [];
       }
+      if (!targetList.length) targetList = buildables;
       if (!targetList.length) { doneCb(); return; }
 
       targetList.sort((a,b) => b.vp - a.vp);
       const target = targetList[0];
       const cost = Math.max(0, target.cost - disc);
-      player.hand.splice(player.hand.indexOf(target), 1);
-      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
-      for (let i = 0; i < cost; i++) { const c = player.hand.shift(); if (!c.isGoods) G.discard.push(c); }
-      player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
-      showCardsCutIn([target], "建築完了！", pName, player.id, true);
+
+      // 手札から建設対象を厳密に削除
+      const targetIdx = actualPlayer.hand.findIndex(c => c === target || (c.uid && c.uid === target.uid));
+      if (targetIdx !== -1) actualPlayer.hand.splice(targetIdx, 1);
+
+      // コスト分を捨てる
+      actualPlayer.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < cost; i++) {
+        const c = actualPlayer.hand.shift();
+        if (c && !c.isGoods) G.discard.push(c);
+      }
+
+      // 建物リストに追加
+      actualPlayer.buildings.push({ ...target, ownerId: actualPlayer.id, capacity: 1, workers: [] });
+      showCardsCutIn([target], "建築完了！", pName, actualPlayer.id, true);
       playBuildSound();
-      if (wp.id === 'general_const') player.hand.push(drawCardFromState(G), drawCardFromState(G));
+      if (wp.id === 'general_const') actualPlayer.hand.push(drawCardFromState(G), drawCardFromState(G));
       G.logHistory.unshift(`[R${rnd}] 🔨 ${aiPrefix}➡ ${pName} が【${target.name}】を建設。`);
       doneCb();
     } else {
       showCardSelectModal(`【${wp.name}】建設する建物を選択（割引: -${disc}枚）`, buildables, 1, bSel => {
         const target = buildables[bSel[0]];
         const cost = Math.max(0, target.cost - disc);
-        const handWithout = player.hand.filter(c => c !== target);
+        const handWithout = actualPlayer.hand.filter(c => c !== target);
         if (cost === 0) {
           playBuildSound();
-          player.hand.splice(player.hand.indexOf(target), 1);
-          player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
-          showCardsCutIn([target], "BUILD COMPLETE!", pName, player.id, true);
-          if (wp.id === 'general_const') player.hand.push(drawCardFromState(G), drawCardFromState(G));
+          actualPlayer.hand.splice(actualPlayer.hand.indexOf(target), 1);
+          actualPlayer.buildings.push({ ...target, ownerId: actualPlayer.id, capacity: 1, workers: [] });
+          showCardsCutIn([target], "BUILD COMPLETE!", pName, actualPlayer.id, true);
+          if (wp.id === 'general_const') actualPlayer.hand.push(drawCardFromState(G), drawCardFromState(G));
           G.logHistory.unshift(`[R${rnd}] 🔨 ${pName} が【${target.name}】を無料建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
           doneCb();
         } else {
@@ -1617,13 +1606,13 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
             playBuildSound();
             cSel.sort((a,b) => b-a).forEach(idx => {
               const c = handWithout.splice(idx, 1)[0];
-              player.hand.splice(player.hand.indexOf(c), 1);
+              actualPlayer.hand.splice(actualPlayer.hand.indexOf(c), 1);
               if (!c.isGoods) G.discard.push(c);
             });
-            player.hand.splice(player.hand.indexOf(target), 1);
-            player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
-            showCardsCutIn([target], "BUILD COMPLETE!", pName, player.id, true);
-            if (wp.id === 'general_const') player.hand.push(drawCardFromState(G), drawCardFromState(G));
+            actualPlayer.hand.splice(actualPlayer.hand.indexOf(target), 1);
+            actualPlayer.buildings.push({ ...target, ownerId: actualPlayer.id, capacity: 1, workers: [] });
+            showCardsCutIn([target], "BUILD COMPLETE!", pName, actualPlayer.id, true);
+            if (wp.id === 'general_const') actualPlayer.hand.push(drawCardFromState(G), drawCardFromState(G));
             G.logHistory.unshift(`[R${rnd}] 🔨 ${pName} が【${target.name}】を建設${wp.id === 'general_const' ? '＆2枚ドロー' : ''}。`);
             doneCb();
           }, cancelCb);
@@ -1631,13 +1620,15 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
       }, cancelCb);
     }
   } else if (wp.id === 'settler') {
-    const farms = player.hand.filter(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
+    const farms = actualPlayer.hand.filter(c => !c.isGoods && ['farm', 'burn', 'orchard', 'plantation'].includes(c.id));
     if (isCpu) {
+      if (!farms.length) { doneCb(); return; }
       farms.sort((a,b) => b.vp - a.vp);
       const target = farms[0];
-      player.hand.splice(player.hand.indexOf(target), 1);
-      player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
-      showCardsCutIn([target], "開拓民で無料建設！", pName, player.id, true);
+      const targetIdx = actualPlayer.hand.findIndex(c => c === target || (c.uid && c.uid === target.uid));
+      if (targetIdx !== -1) actualPlayer.hand.splice(targetIdx, 1);
+      actualPlayer.buildings.push({ ...target, ownerId: actualPlayer.id, capacity: 1, workers: [] });
+      showCardsCutIn([target], "開拓民で無料建設！", pName, actualPlayer.id, true);
       playBuildSound();
       G.logHistory.unshift(`[R${rnd}] 🚜 ${aiPrefix}➡ ${pName} が【開拓民】で【${target.name}】を無料建設！`);
       doneCb();
@@ -1645,25 +1636,30 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
       showCardSelectModal('【開拓民】無料建設する農園を選択', farms, 1, bSel => {
         playBuildSound();
         const target = farms[bSel[0]];
-        player.hand.splice(player.hand.indexOf(target), 1);
-        player.buildings.push({ ...target, ownerId: player.id, capacity: 1, workers: [] });
-        showCardsCutIn([target], "開拓民で無料建設！", pName, player.id, true);
+        actualPlayer.hand.splice(actualPlayer.hand.indexOf(target), 1);
+        actualPlayer.buildings.push({ ...target, ownerId: actualPlayer.id, capacity: 1, workers: [] });
+        showCardsCutIn([target], "開拓民で無料建設！", pName, actualPlayer.id, true);
         G.logHistory.unshift(`[R${rnd}] 🚜 ${pName} が【開拓民】で【${target.name}】を無料建設！`);
         doneCb();
       }, cancelCb);
     }
   } else if (wp.id === 'niko_const') {
-    const builds = player.hand.filter(c => !c.isGoods);
+    const builds = actualPlayer.hand.filter(c => !c.isGoods);
     if (isCpu) {
       const cg = {}; builds.forEach(c => cg[c.cost] = (cg[c.cost] || 0) + 1);
-      const costNum = parseInt(Object.keys(cg).find(c => cg[c] >= 2 && player.hand.length >= 2 + parseInt(c, 10)), 10);
+      const costKey = Object.keys(cg).find(c => cg[c] >= 2 && actualPlayer.hand.length >= 2 + parseInt(c, 10));
+      if (!costKey) { doneCb(); return; }
+      const costNum = parseInt(costKey, 10);
       const pair = builds.filter(c => c.cost === costNum).slice(0, 2);
-      player.hand.splice(player.hand.indexOf(pair[0]), 1);
-      player.hand.splice(player.hand.indexOf(pair[1]), 1);
-      player.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
-      for (let i = 0; i < costNum; i++) { const c = player.hand.shift(); if (!c.isGoods) G.discard.push(c); }
-      player.buildings.push({ ...pair[0], ownerId: player.id, capacity: 1, workers: [] }, { ...pair[1], ownerId: player.id, capacity: 1, workers: [] });
-      showCardsCutIn(pair, "二胡市建設で2軒同時建築！", pName, player.id, true);
+      
+      pair.forEach(item => {
+        const idx = actualPlayer.hand.findIndex(c => c === item || (c.uid && c.uid === item.uid));
+        if (idx !== -1) actualPlayer.hand.splice(idx, 1);
+      });
+      actualPlayer.hand.sort((a,b) => (a.isGoods ? 0 : a.vp) - (b.isGoods ? 0 : b.vp));
+      for (let i = 0; i < costNum; i++) { const c = actualPlayer.hand.shift(); if (c && !c.isGoods) G.discard.push(c); }
+      actualPlayer.buildings.push({ ...pair[0], ownerId: actualPlayer.id, capacity: 1, workers: [] }, { ...pair[1], ownerId: actualPlayer.id, capacity: 1, workers: [] });
+      showCardsCutIn(pair, "二胡市建設で2軒同時建築！", pName, actualPlayer.id, true);
       playBuildSound();
       G.logHistory.unshift(`[R${rnd}] 🏗️ ${aiPrefix}➡ ${pName} が【二胡市建設】で2軒建設。`);
       doneCb();
@@ -1671,18 +1667,18 @@ function applyActionEffect(player, wp, isCpu, doneCb, cancelCb = null, aiLogInfo
       showCardSelectModal('【二胡市建設】同じコストの建物を2つ選択', builds, 2, chosen => {
         const b1 = builds[chosen[0]], b2 = builds[chosen[1]];
         if (b1.cost !== b2.cost) { alert('コストが同じ建物を2つ選んでください！'); return; }
-        const cost = b1.cost, handWithout = player.hand.filter(c => c !== b1 && c !== b2);
+        const cost = b1.cost, handWithout = actualPlayer.hand.filter(c => c !== b1 && c !== b2);
         showCardSelectModal(`コストとして捨てるカードを ${cost} 枚選択`, handWithout, cost, cSel => {
           playBuildSound();
           cSel.sort((a,b) => b-a).forEach(idx => {
             const c = handWithout.splice(idx, 1)[0];
-            player.hand.splice(player.hand.indexOf(c), 1);
+            actualPlayer.hand.splice(actualPlayer.hand.indexOf(c), 1);
             if (!c.isGoods) G.discard.push(c);
           });
-          player.hand.splice(player.hand.indexOf(b1), 1);
-          player.hand.splice(player.hand.indexOf(b2), 1);
-          player.buildings.push({ ...b1, ownerId: player.id, capacity: 1, workers: [] }, { ...b2, ownerId: player.id, capacity: 1, workers: [] });
-          showCardsCutIn([b1, b2], "二胡市建設で2軒同時建築！", pName, player.id, true);
+          actualPlayer.hand.splice(actualPlayer.hand.indexOf(b1), 1);
+          actualPlayer.hand.splice(actualPlayer.hand.indexOf(b2), 1);
+          actualPlayer.buildings.push({ ...b1, ownerId: actualPlayer.id, capacity: 1, workers: [] }, { ...b2, ownerId: actualPlayer.id, capacity: 1, workers: [] });
+          showCardsCutIn([b1, b2], "二胡市建設で2軒同時建築！", pName, actualPlayer.id, true);
           G.logHistory.unshift(`[R${rnd}] 🏗️ ${pName} が【二胡市建設】で【${b1.name}】と【${b2.name}】を同時建設！`);
           doneCb();
         }, cancelCb);
@@ -2083,6 +2079,41 @@ function renderAll() {
         `;
         myBldGrid.appendChild(card);
       });
+    }
+
+    // 他プレイヤー・CPUの所有建物グリッド
+    const otherBldGrid = document.getElementById('other-buildings-grid');
+    const otherBldSec = document.getElementById('other-buildings-section');
+    otherBldGrid.innerHTML = '';
+    let totalOtherBuildings = 0;
+
+    (G.players || []).forEach(otherP => {
+      if (!otherP || otherP.id === mySeatIndex) return;
+      const bList = ensureArray(otherP.buildings);
+      totalOtherBuildings += bList.length;
+
+      bList.forEach((b) => {
+        if (!b) return;
+        const card = document.createElement('div');
+        card.className = `card other-facility ${b.sellable === false && b.id !== 'burn' ? 'passive' : ''}`;
+        card.innerHTML = `
+          <div class="card-top">
+            <span class="card-name">${b.name}</span>
+            <span class="card-tag" style="background:#fef3c7; color:#78350f;">${otherP.name}</span>
+          </div>
+          <div class="card-sub">価値: $${b.vp} / VP: ${b.vp} (${b.tag})</div>
+          <div class="card-desc">${b.desc}</div>
+          <div class="worker-row">${ensureArray(b.workers).map(pId => getMeepleSvg(P_COLORS[pId] || '#fff', false, 'board-meeple')).join('')}</div>
+        `;
+        otherBldGrid.appendChild(card);
+      });
+    });
+
+    if (totalOtherBuildings > 0) {
+      otherBldSec.style.display = 'block';
+      document.getElementById('other-bld-count-info').innerText = `合計: ${totalOtherBuildings}軒`;
+    } else {
+      otherBldSec.style.display = 'none';
     }
 
     // 売却された公共職場
